@@ -1,0 +1,6 @@
+{
+  "regions": ["fra1"],
+  "headers": [
+    { "source": "/index.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
+  ]
+}
