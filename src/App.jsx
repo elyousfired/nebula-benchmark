@@ -77,7 +77,7 @@ export default function App() {
   const sentiment = useMemo(() => marketSentiment(chart.curves), [chart]);
 
   // Market caps for Vol/MC (top 50 only, cached 5 min).
-  const capKey = list.map((t) => t.base).join(',');
+  const capKey = list.map((t) => t.base).sort().join(',');
   useEffect(() => {
     if (!capKey) return undefined;
     const bases = capKey.split(',');
