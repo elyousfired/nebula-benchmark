@@ -9,7 +9,7 @@ import { collectiveLevels, sniperLevels } from '../src/core/levels.js';
 import { volumeProfile } from '../src/core/volumeProfile.js';
 import { replayTrade, replayAll } from '../src/core/backtest.js';
 import { stepSignals } from '../src/core/signals.js';
-import { selectUniverse, isTokenizedStock, isLeveraged } from '../src/core/universe.js';
+import { selectUniverse, isTokenizedStock, isLeveraged, isStable } from '../src/core/universe.js';
 import { mockKlines, mockTickers } from '../dev/mockBybit.js';
 
 const H = HOUR;
@@ -220,6 +220,8 @@ test('selectUniverse filters BTC/ETH, stables, leveraged and tokenized stocks', 
   assert.ok(isTokenizedStock('AAPLX'));
   assert.ok(!isTokenizedStock('XX'));
   assert.ok(isLeveraged('BTC3L'));
+  for (const s of ['USDS', 'USDY', 'USAT', 'BUSDT', 'USDE', 'PYUSD', 'RLUSD']) assert.ok(isStable(s), s);
+  for (const s of ['STABLE', 'SUI', 'SUSHI', 'MUBARAK']) assert.ok(!isStable(s), s);
   const now = Date.UTC(2026, 10, 20, 21, 0);
   const u = selectUniverse(mockTickers(now).result.list, { minTurnover: 0 });
   const bases = u.map((t) => t.base);

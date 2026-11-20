@@ -21,7 +21,8 @@ export async function fetchMarketCaps(symbols) {
   });
   for (let i = 0; i < missing.length; i += 50) {
     const chunk = missing.slice(i, i + 50).map((s) => s.toLowerCase());
-    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&symbols=${chunk.join(',')}&per_page=250&page=1`;
+    // Through our own function: CoinGecko's free API sends no CORS header on errors / rate limits.
+    const url = `/api/coingecko?symbols=${chunk.join(',')}`;
     try {
       const res = await fetch(url);
       if (!res.ok) break; // 429 etc: keep cached values, try again later
