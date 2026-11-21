@@ -3,7 +3,12 @@
 // requests go through this site's own /api/bybit function (whitelisted).
 
 const DIRECT = 'https://api.bybit.com/v5/market';
-const PROXY = '/api/bybit';
+let PROXY = '/api/bybit';
+
+/** Absolute proxy URL for non-browser use (the bot). */
+export function setProxy(url) {
+  PROXY = url;
+}
 
 let route = 'direct'; // switches to 'proxy' after repeated network/CORS failures
 let directFailures = 0;
@@ -31,7 +36,9 @@ async function fetchJson(url, timeoutMs) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
+    const opts = { signal: ctrl.signal };
+    if (typeof window !== 'undefined') opts.cache = 'no-store'; // Node's fetch rejects `cache`
+    const res = await fetch(url, opts);
     if (!res.ok) throw new BybitError(`HTTP ${res.status}`, { status: res.status });
     return await res.json();
   } finally {

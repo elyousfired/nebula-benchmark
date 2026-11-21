@@ -25,28 +25,34 @@ export const MOCK_SYMBOLS = [
   'BTC', 'ETH', 'USDC', 'BTC3L', 'AAPLX',
 ].map((b) => `${b}USDT`);
 
-/** Full 1H path for a symbol over `hours` hours ending at `now` (floored). */
-function path(symbol, now, intervalMs, count) {
-  const r = rng(hash(symbol) + Math.floor(intervalMs / 60000));
-  const drift = (rng(hash(symbol))() - 0.42) * 0.0015 * Math.sqrt(intervalMs / 3600000);
-  const vol = 0.004 + rng(hash(symbol) + 7)() * 0.012;
-  const sv = vol * Math.sqrt(intervalMs / 3600000);
-  const base = 0.01 + rng(hash(symbol) + 3)() * 50;
-  const end = Math.floor(now / intervalMs) * intervalMs;
-  const rows = [];
-  let p = base;
-  for (let i = count - 1; i >= 0; i--) {
-    const t = end - i * intervalMs;
-    const o = p;
-    const pump = r() < 0.0006 ? 0.06 : 0;
-    const c = Math.max(1e-6, o * (1 + drift + pump + (r() - 0.5) * 2 * sv));
-    const h = Math.max(o, c) * (1 + r() * sv);
-    const l = Math.min(o, c) * (1 - r() * sv);
-    const v = 1000 + r() * 100000;
-    rows.push([t, o, h, l, c, v, v * c]);
-    p = c;
+// 15m path anchored on a fixed date, so the price really moves as time passes
+// (each bar is generated once and cached).
+const ANCHOR = Date.UTC(2026, 8, 1);
+const Q = 15 * 60000;
+const paths = new Map();
+
+function path15(symbol, now) {
+  let p = paths.get(symbol);
+  if (!p) {
+    const drift = (rng(hash(symbol))() - 0.42) * 0.0015 * 0.5;
+    const vol = (0.004 + rng(hash(symbol) + 7)() * 0.012) * 0.5;
+    p = { r: rng(hash(symbol) + 15), drift, vol, price: 0.01 + rng(hash(symbol) + 3)() * 50, rows: [] };
+    paths.set(symbol, p);
   }
-  return rows;
+  const endT = Math.floor(now / Q) * Q;
+  let t = p.rows.length ? p.rows[p.rows.length - 1][0] + Q : ANCHOR;
+  while (t <= endT) {
+    const o = p.price;
+    const pump = p.r() < 0.003 ? 0.05 : 0;
+    const c = Math.max(1e-6, o * (1 + p.drift + pump + (p.r() - 0.5) * 2 * p.vol));
+    const h = Math.max(o, c) * (1 + p.r() * p.vol);
+    const l = Math.min(o, c) * (1 - p.r() * p.vol);
+    const v = 1000 + p.r() * 100000;
+    p.rows.push([t, o, h, l, c, v, v * c]);
+    p.price = c;
+    t += Q;
+  }
+  return p.rows;
 }
 
 export function mockKlines(symbol, interval, limit, now) {
@@ -54,7 +60,8 @@ export function mockKlines(symbol, interval, limit, now) {
   const n = Math.min(Number(limit) || 200, 1000);
   // One 15m path (~42 days) aggregated to the requested interval, so 15m / 1H
   // series and the ticker price are consistent with each other.
-  const base = path(symbol, now, 15 * 60000, 4040);
+  const all = path15(symbol, now);
+  const base = all.slice(Math.max(0, all.length - 4040));
   const rows = [];
   for (const r of base) {
     const t = Math.floor(r[0] / iv) * iv;
@@ -92,6 +99,8 @@ export function mockTickers(now) {
         return {
           symbol: s,
           lastPrice: String(last),
+          bid1Price: String(last * 0.9995),
+          ask1Price: String(last * 1.0005),
           price24hPcnt: String((last - prev) / prev),
           turnover24h: String(turnover),
         };

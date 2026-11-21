@@ -55,3 +55,45 @@ dev/mockBybit.js synthetic Bybit data (tests + offline preview)
 ## Not carried over (v1)
 
 Corridor Sniper chart, DeFiLlama diagnostics, synthetic candle chart and the TradingView R:R tool. They can be added later as separate components on top of `core/`.
+
+## Paper trading bot (`bot/`)
+
+This bot simulates the Launchpad strategy on live Bybit prices. **It never sends orders and needs no API key.**
+
+```bash
+npm run bot          # starts it (Ctrl+C to stop; state is saved and resumed on restart)
+npm run bot:report   # prints the P&L summary
+```
+
+You need Node.js 18 or newer. The bot has no npm dependencies, so you can run it right after `git clone`.
+
+### Rules (`bot/engine.js`)
+
+| Step | Rule |
+|---|---|
+| Watched tokens | Top 50 by 30D score, the same list as the site's alerts |
+| Entry | The token's 24H curve crosses the **Launchpad** line upward between two ticks (every 10 s), with no buy more than 2 pts above it. The buy is filled at the **ask**. |
+| TP1 | **50% is sold at the Rejection Wall**. The wall level is converted into a price at entry and then stays fixed. The trade is skipped if the wall is less than +1% away. |
+| After TP1 | The stop moves to **breakeven** (entry + fees) |
+| Final exit | The remaining half is sold at **+10%** |
+| Stop | **−2%** from entry. A stop is filled at the bid, so a price gap fills worse than −2%. |
+| Fees | 0.1% per fill (Bybit spot taker) |
+| Cooldown | No new entry on the same token for 6 h after an exit |
+
+If the wall is above +10%, there is no partial exit: the whole position exits at +10%.
+P&L is measured in **% per trade**, fees included. Totals are the sum of those %.
+
+You can change the parameters in `bot/config.json`, for example:
+`{ "stopPct": 2, "finalPct": 10, "feePct": 0.1, "maxChasePts": 2, "cooldownMs": 21600000 }`.
+
+### Files (`bot/data/`, not committed)
+
+- `state.json` holds the open positions, the closed trades and the last 24H values.
+- `trades.csv` lists one line per closed trade (exits and P&L %).
+- `events.log` records every buy, TP1, stop and final exit.
+
+### Limits
+
+- Prices are polled every 10 s, so a very fast wick can be missed.
+- The bot only runs while the PC is on and awake. After a pause, it does not re-enter on a stale crossing.
+- An offline test on accelerated synthetic data is available: `BOT_MOCK=1 npm run bot`.
