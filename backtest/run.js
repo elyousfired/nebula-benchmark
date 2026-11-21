@@ -28,7 +28,10 @@ const arg = (name, def) => {
   if (!Number.isFinite(v)) { console.error(`Valeur invalide pour --${name}: ${process.argv[i + 1]}`); process.exit(1); }
   return v;
 };
-const HOURS = arg('hours', 0);
+const SINCE_I = process.argv.indexOf('--since');
+const SINCE = SINCE_I > 0 ? Date.parse(`${process.argv[SINCE_I + 1].replace(' ', 'T')}${/Z|[+-]\d\d:?\d\d$/.test(process.argv[SINCE_I + 1]) ? '' : 'Z'}`) : null;
+if (SINCE_I > 0 && !Number.isFinite(SINCE)) { console.error('Valeur invalide pour --since (ex: 2026-11-21T00:45)'); process.exit(1); }
+const HOURS = SINCE ? Math.max(0.25, (Date.now() - SINCE) / 3_600_000) : arg('hours', 0);
 const DAYS = HOURS > 0 ? HOURS / 24 : arg('days', 30);
 const WARMUP_DAYS = 31; // 30D score + 24H curve
 const MOCK = process.env.BOT_MOCK === '1';
@@ -171,7 +174,7 @@ async function klines1m(symbol, fromMs, toMs) {
 async function main() {
   const now = Date.now();
   const lastClosedOpen = Math.floor(now / Q) * Q - Q; // open time of the last CLOSED candle
-  const start = lastClosedOpen - DAYS * 86_400_000;
+  const start = SINCE ? Math.floor(SINCE / Q) * Q - Q : lastClosedOpen - DAYS * 86_400_000;
   const from = start - WARMUP_DAYS * 86_400_000;
 
   log(`Backtest Launchpad · ${HOURS > 0 ? `${HOURS} h` : `${DAYS} jours`} · du ${new Date(start + Q).toISOString().slice(0, 16)} au ${new Date(lastClosedOpen + Q).toISOString().slice(0, 16)} UTC`);
