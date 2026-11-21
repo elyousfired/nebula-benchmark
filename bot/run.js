@@ -217,7 +217,7 @@ async function tick() {
       r.position.stopInitial = r.position.stop;
       state.open.push(r.position);
       const p = r.position;
-      log(`🚀 ACHAT   ${sym} (#${p.rank}) @ ${p.entry} | LP ${sig.levels.entry} pts | TP1 ${p.tp1 ?? '—'} (${p.tp1 ? `+${((p.tp1 / p.entry - 1) * 100).toFixed(2)}%` : 'mur ≥ +10%'}) | final ${p.final} (+${CFG.finalPct}%) | stop ${p.stop} (-${CFG.stopPct}%)`);
+      log(`🚀 ACHAT   ${sym} (#${p.rank}) @ ${p.entry} | LP ${sig.levels.entry} pts | TP1 ${p.tp1 ?? '—'} (${p.tp1 ? `+${((p.tp1 / p.entry - 1) * 100).toFixed(2)}%` : 'mur ≥ +10%'}) | final ${p.final ?? '—'}${p.final ? ` (+${CFG.finalPct}%)` : ''} | stop ${p.stop} (-${CFG.stopPct}%)`);
     }
     state.prevPts = sig.pts;
     state.prevPtsAt = now;
@@ -236,7 +236,7 @@ function guard(name, fn) {
 }
 
 async function main() {
-  log(`Démarrage bot PAPER · stop -${CFG.stopPct}% · 50% au mur de rejet puis stop BE · reste à +${CFG.finalPct}% · frais ${CFG.feePct}%/ordre`);
+  log(`Démarrage bot PAPER · stop -${CFG.stopPct}% · ${CFG.useTp1 === false ? 'pas de TP1' : '50% au mur'} · ${CFG.useFinal === false ? 'pas de target' : `reste +${CFG.finalPct}%`}${CFG.trailPct ? ` · trailing ${CFG.trailPct}% dès +${CFG.trailActivatePct || 0}%` : ''} · frais ${CFG.feePct}%/ordre`);
   if (state.open.length || state.closed.length) log(`Reprise: ${state.open.length} positions ouvertes, ${state.closed.length} trades fermés`);
   await fullScan();
   const tickG = guard('tick', tick);

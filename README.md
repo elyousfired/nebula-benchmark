@@ -113,3 +113,18 @@ Limits:
 - The universe is the pairs listed today, so delisted tokens are missing.
 - Signals are detected every 15 min, while the real bot checks every 10 s.
 - The order of prices inside a candle is assumed.
+
+### Trailing stop
+
+The trailing stop works in both the bot and the backtest.
+
+**Bot:** set it in `bot/config.json`, for example a pure trailing stop with no TP:
+```json
+{ "trailPct": 1, "trailActivatePct": 0, "useTp1": false, "useFinal": false }
+```
+
+**Backtest:** pass it on the command line:
+```bash
+npm run backtest -- --trail 1 --no-tp1 --no-final
+npm run backtest -- --trail 1 --activate 1      # trailing only from +1%
+```

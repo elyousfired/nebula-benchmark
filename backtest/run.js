@@ -28,6 +28,17 @@ const DAYS = arg('days', 30);
 const WARMUP_DAYS = 31; // 30D score + 24H curve
 const MOCK = process.env.BOT_MOCK === '1';
 
+// Same overrides as the bot (bot/config.json), plus CLI: --trail 2 --activate 0 --no-tp1 --no-final --stop 2 --final 10
+let userCfg = {};
+try { userCfg = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'bot', 'config.json'), 'utf8')); } catch { /* defaults */ }
+const CFG = { ...DEFAULT_CONFIG, ...userCfg };
+if (process.argv.includes('--trail')) CFG.trailPct = arg('trail', 0);
+if (process.argv.includes('--activate')) CFG.trailActivatePct = arg('activate', 0);
+if (process.argv.includes('--stop')) CFG.stopPct = arg('stop', CFG.stopPct);
+if (process.argv.includes('--final')) CFG.finalPct = arg('final', CFG.finalPct);
+if (process.argv.includes('--no-tp1')) CFG.useTp1 = false;
+if (process.argv.includes('--no-final')) CFG.useFinal = false;
+
 setProxy(process.env.BOT_PROXY || 'https://nebula-benchmark.vercel.app/api/bybit');
 fs.mkdirSync(CACHE, { recursive: true });
 fs.mkdirSync(OUT, { recursive: true });
@@ -159,8 +170,8 @@ async function main() {
   log(`Simulation sur ${T.length - startIdx} bougies × ${Object.keys(tokens).length} tokens…`);
 
   const ctx = { start: start + Q };
-  const A = simulate({ T, tokens, startIdx, cfg: DEFAULT_CONFIG });
-  const B = simulate({ T, tokens, startIdx, cfg: DEFAULT_CONFIG, minTurnoverEntry: 1_000_000 });
+  const A = simulate({ T, tokens, startIdx, cfg: CFG });
+  const B = simulate({ T, tokens, startIdx, cfg: CFG, minTurnoverEntry: 1_000_000 });
 
   // References
   const btc = raw.BTCUSDT || [];
@@ -174,7 +185,7 @@ async function main() {
   const text = [
     '═══════════════ BACKTEST LAUNCHPAD (walk-forward, sans look-ahead) ═══════════════',
     `Période       : ${day(start)} → ${day(lastClosedOpen)} (${DAYS} j) · pas de 15 min · ${Object.keys(tokens).length} tokens`,
-    `Règles        : entrée croisement Launchpad 24H (Top 50 score 30D) · 50% au mur · stop BE · reste +${DEFAULT_CONFIG.finalPct}% · stop -${DEFAULT_CONFIG.stopPct}% · frais ${DEFAULT_CONFIG.feePct}%/ordre · spread 0.05%`,
+    `Règles        : entrée croisement Launchpad 24H (Top 50 score 30D) · ${CFG.useTp1 === false ? 'pas de TP1' : '50% au mur'} · ${CFG.useFinal === false ? 'pas de target final' : `reste +${CFG.finalPct}%`} · stop -${CFG.stopPct}%${CFG.trailPct ? ` · trailing ${CFG.trailPct}% (activé à +${CFG.trailActivatePct || 0}%)` : ' · stop BE après TP1'} · frais ${CFG.feePct}%/ordre · spread 0.05%`,
     `Niveaux vus   : launchpad médian ${lp.length ? lp[Math.floor(lp.length / 2)] : '—'} pts · mur médian ${wall.length ? wall[Math.floor(wall.length / 2)] : '—'} pts`,
     `Référence     : BTC ${pct(btcRet)} · token médian de l'univers ${pct(median)} sur la période`,
     '',

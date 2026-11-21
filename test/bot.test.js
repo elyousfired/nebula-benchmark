@@ -71,3 +71,26 @@ test('summarize: win rate, total, drawdown', () => {
   assert.equal(s.maxDrawdownPct, -4.4);
   assert.equal(realizedPnlPct({ entry: 100, fills: [{ price: 110, share: 1 }] }, cfg), 9.8);
 });
+
+test('trailing stop: ratchets up behind the best bid and exits as TRAIL', () => {
+  const tcfg = { ...cfg, trailPct: 2, trailActivatePct: 0, useTp1: false, useFinal: false };
+  let p = openPosition({ symbol: 'T', ask: 100, last: 100, curvePts: 8, levels: lv, now: 0 }, tcfg).position;
+  assert.equal(p.tp1, null);
+  assert.equal(p.final, null);
+  ({ position: p } = updatePosition(p, { bid: 110, now: 1 }, tcfg));
+  assert.ok(Math.abs(p.stop - 107.8) < 1e-6);
+  ({ position: p } = updatePosition(p, { bid: 109, now: 2 }, tcfg));
+  assert.ok(Math.abs(p.stop - 107.8) < 1e-6, 'never moves down');
+  const r = updatePosition(p, { bid: 107.5, now: 3 }, tcfg);
+  assert.deepEqual(r.events, ['TRAIL']);
+  assert.ok(r.position.pnlPct > 7);
+});
+
+test('trailing stop only after activation', () => {
+  const tcfg = { ...cfg, trailPct: 2, trailActivatePct: 3, useTp1: false, useFinal: false };
+  let p = openPosition({ symbol: 'T', ask: 100, last: 100, curvePts: 8, levels: lv, now: 0 }, tcfg).position;
+  ({ position: p } = updatePosition(p, { bid: 102, now: 1 }, tcfg));
+  assert.equal(p.stop, 98);
+  ({ position: p } = updatePosition(p, { bid: 104, now: 2 }, tcfg));
+  assert.ok(Math.abs(p.stop - 101.92) < 1e-6);
+});

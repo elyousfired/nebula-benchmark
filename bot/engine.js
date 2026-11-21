@@ -22,6 +22,12 @@ export const DEFAULT_CONFIG = {
   maxChasePts: 2, // don't buy if already > launchpad + 2 pts
   cooldownMs: 6 * 3_600_000, // no re-entry on the same token for 6h after an exit
   maxHoldMs: 0, // 0 = no time limit
+  // Trailing stop (off when trailPct = 0): once the best bid is >= entry × (1 + trailActivatePct%),
+  // the stop follows the best bid at trailPct% below it (never moves down).
+  trailPct: 0,
+  trailActivatePct: 0,
+  useTp1: true, // 50% at the rejection wall
+  useFinal: true, // remaining part at +finalPct%
 };
 
 const r6 = (x) => Number(x.toPrecision(8));
@@ -55,8 +61,8 @@ export function openPosition({ symbol, ask, last, curvePts, levels, now, rank },
   const tp1Pct = (wallPrice / ask - 1) * 100;
   if (tp1Pct < cfg.minTp1Pct) return { skip: `wall too close (+${tp1Pct.toFixed(2)}%)` };
 
-  const finalPrice = ask * (1 + cfg.finalPct / 100);
-  const partial = wallPrice < finalPrice;
+  const finalPrice = cfg.useFinal === false ? Infinity : ask * (1 + cfg.finalPct / 100);
+  const partial = cfg.useTp1 !== false && wallPrice < finalPrice;
   return {
     position: {
       id: `${symbol}_${now}`,
@@ -67,7 +73,7 @@ export function openPosition({ symbol, ask, last, curvePts, levels, now, rank },
       launchpadPts: levels.entry,
       wallPts: levels.tp,
       tp1: partial ? r6(wallPrice) : null,
-      final: r6(finalPrice),
+      final: Number.isFinite(finalPrice) ? r6(finalPrice) : null,
       stop: r6(ask * (1 - cfg.stopPct / 100)),
       remaining: 1, // fraction of the position still open
       fills: [], // { at, price, share, reason }
@@ -85,7 +91,7 @@ function fill(pos, { at, price, share, reason }) {
 
 /**
  * Advance a position with a new bid. Returns { position, events } (position is a new object).
- * events: ['TP1', 'FINAL', 'STOP', 'BREAKEVEN', 'TIMEOUT']
+ * events: ['TP1', 'FINAL', 'STOP', 'BREAKEVEN', 'TRAIL', 'TIMEOUT']
  */
 export function updatePosition(position, { bid, now }, cfg = DEFAULT_CONFIG) {
   if (position.status !== 'OPEN' || !(bid > 0)) return { position, events: [] };
@@ -94,19 +100,25 @@ export function updatePosition(position, { bid, now }, cfg = DEFAULT_CONFIG) {
   pos.maxPrice = Math.max(pos.maxPrice, bid);
   pos.minPrice = Math.min(pos.minPrice, bid);
 
+  // Trailing stop: ratchet the stop up behind the best bid.
+  if (cfg.trailPct > 0 && pos.maxPrice >= pos.entry * (1 + (cfg.trailActivatePct || 0) / 100)) {
+    const trail = r6(pos.maxPrice * (1 - cfg.trailPct / 100));
+    if (trail > pos.stop) { pos.stop = trail; pos.trailing = true; }
+  }
+
   // Stop first: if the bid is at/below the stop, we're out regardless of targets.
   if (bid <= pos.stop) {
-    const reason = pos.tp1Done ? 'BREAKEVEN' : 'STOP';
+    const reason = pos.trailing ? 'TRAIL' : pos.tp1Done ? 'BREAKEVEN' : 'STOP';
     fill(pos, { at: now, price: Math.min(bid, pos.stop), share: pos.remaining, reason });
     events.push(reason);
   } else {
     if (pos.tp1 && !pos.tp1Done && bid >= pos.tp1) {
       fill(pos, { at: now, price: pos.tp1, share: cfg.tp1Share, reason: 'TP1' });
       pos.tp1Done = true;
-      pos.stop = r6(pos.entry * (1 + (2 * cfg.feePct) / 100));
+      pos.stop = Math.max(pos.stop, r6(pos.entry * (1 + (2 * cfg.feePct) / 100)));
       events.push('TP1');
     }
-    if (bid >= pos.final && pos.remaining > 0) {
+    if (pos.final != null && bid >= pos.final && pos.remaining > 0) {
       fill(pos, { at: now, price: pos.final, share: pos.remaining, reason: 'FINAL' });
       events.push('FINAL');
     }
