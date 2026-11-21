@@ -210,6 +210,7 @@ async function tick() {
     const crosses = detectCrossings(prev, sig.pts, sig.levels.entry, CFG.maxChasePts);
     for (const sym of crosses) {
       if (state.open.some((p) => p.symbol === sym)) continue;
+      if ((sig.ranks[sym] ?? 99) > (CFG.maxRank || 50)) continue;
       if (now - (state.cooldown[sym] || 0) < CFG.cooldownMs) continue;
       const tk = tickers[sym];
       const r = openPosition({ symbol: sym, ask: askOf(tk), last: Number(tk?.lastPrice), curvePts: sig.pts[sym], levels: sig.levels, now, rank: sig.ranks[sym] }, CFG);

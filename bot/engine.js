@@ -28,6 +28,7 @@ export const DEFAULT_CONFIG = {
   trailActivatePct: 0,
   useTp1: true, // 50% at the rejection wall
   useFinal: true, // remaining part at +finalPct%
+  maxRank: 50, // only enter tokens ranked <= maxRank by 30D score
 };
 
 const r6 = (x) => Number(x.toPrecision(8));
