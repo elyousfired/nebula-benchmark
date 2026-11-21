@@ -127,7 +127,7 @@ function report(name, res, ctx) {
   }
   if (ctx.listAll) {
     const hm = (t) => new Date(t).toISOString().slice(11, 16);
-    for (const t of res.closed) L.push(`   ✔ ${t.symbol.padEnd(14)} entrée ${hm(t.openedAt)} @ ${t.entry} → ${t.fills.map((f) => `${f.reason} ${hm(t.closedAt)} @ ${f.price}`).join(' + ')}  ${pct(t.pnlPct)}`);
+    for (const t of res.closed) L.push(`   ✔ ${t.symbol.padEnd(14)} entrée ${hm(t.openedAt)} @ ${t.entry} → ${t.fills.map((f) => `${f.reason} ${hm(f.at)} @ ${f.price}`).join(' + ')}  ${pct(t.pnlPct)}`);
     for (const p of res.open) L.push(`   … ${p.symbol.padEnd(14)} entrée ${hm(p.openedAt)} @ ${p.entry} (stop ${p.stop}${p.tp1 ? `, TP1 ${p.tp1}` : ''}) en cours ${pct(p.markPct)}`);
   }
   L.push(`Signaux ignorés    : chase ${res.skipped.chase} · mur trop proche ${res.skipped.wall} · liquidité ${res.skipped.liquidity} · cooldown ${res.skipped.cooldown}`);
