@@ -72,7 +72,7 @@ export function stepCandle(pos, bar, time, cfg, slip = 0.0005) {
  * @param tokens  { [sym]: { o,h,l,c,q: Float64Array (NaN = missing), turn24: Float64Array } }
  * @param startIdx first step of the test window (needs ≥ 2880+96 bars of history before)
  */
-export function simulate({ T, tokens, startIdx, cfg = DEFAULT_CONFIG, minTurnoverUniverse = 10_000, minTurnoverEntry = 0, spread = 0.0005 }) {
+export function simulate({ T, tokens, startIdx, cfg = DEFAULT_CONFIG, minTurnoverUniverse = 10_000, minTurnoverEntry = 0, maxRank = 50, spread = 0.0005 }) {
   const syms = Object.keys(tokens);
   const open = [];
   const closed = [];
@@ -128,6 +128,7 @@ export function simulate({ T, tokens, startIdx, cfg = DEFAULT_CONFIG, minTurnove
     for (const s of detectCrossings(prevForCross, pts, levels.entry, Infinity)) {
       if (pts[s] > levels.entry + cfg.maxChasePts) { skipped.chase++; continue; }
       if (open.some((p) => p.symbol === s)) continue;
+      if ((ranks[s] ?? 99) > maxRank) continue;
       if (now - (cooldown[s] || 0) < cfg.cooldownMs) { skipped.cooldown++; continue; }
       const tk = tokens[s];
       if (!(tk.turn24[i] >= minTurnoverEntry)) { skipped.liquidity++; continue; }

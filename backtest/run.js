@@ -38,6 +38,7 @@ if (process.argv.includes('--stop')) CFG.stopPct = arg('stop', CFG.stopPct);
 if (process.argv.includes('--final')) CFG.finalPct = arg('final', CFG.finalPct);
 if (process.argv.includes('--no-tp1')) CFG.useTp1 = false;
 if (process.argv.includes('--no-final')) CFG.useFinal = false;
+const MAX_RANK = arg('max-rank', 50);
 
 setProxy(process.env.BOT_PROXY || 'https://nebula-benchmark.vercel.app/api/bybit');
 fs.mkdirSync(CACHE, { recursive: true });
@@ -170,8 +171,8 @@ async function main() {
   log(`Simulation sur ${T.length - startIdx} bougies × ${Object.keys(tokens).length} tokens…`);
 
   const ctx = { start: start + Q };
-  const A = simulate({ T, tokens, startIdx, cfg: CFG });
-  const B = simulate({ T, tokens, startIdx, cfg: CFG, minTurnoverEntry: 1_000_000 });
+  const A = simulate({ T, tokens, startIdx, cfg: CFG, maxRank: MAX_RANK });
+  const B = simulate({ T, tokens, startIdx, cfg: CFG, minTurnoverEntry: 1_000_000, maxRank: MAX_RANK });
 
   // References
   const btc = raw.BTCUSDT || [];
@@ -185,7 +186,7 @@ async function main() {
   const text = [
     '═══════════════ BACKTEST LAUNCHPAD (walk-forward, sans look-ahead) ═══════════════',
     `Période       : ${day(start)} → ${day(lastClosedOpen)} (${DAYS} j) · pas de 15 min · ${Object.keys(tokens).length} tokens`,
-    `Règles        : entrée croisement Launchpad 24H (Top 50 score 30D) · ${CFG.useTp1 === false ? 'pas de TP1' : '50% au mur'} · ${CFG.useFinal === false ? 'pas de target final' : `reste +${CFG.finalPct}%`} · stop -${CFG.stopPct}%${CFG.trailPct ? ` · trailing ${CFG.trailPct}% (activé à +${CFG.trailActivatePct || 0}%)` : ' · stop BE après TP1'} · frais ${CFG.feePct}%/ordre · spread 0.05%`,
+    `Règles        : entrée croisement Launchpad 24H (Top ${MAX_RANK} score 30D) · ${CFG.useTp1 === false ? 'pas de TP1' : '50% au mur'} · ${CFG.useFinal === false ? 'pas de target final' : `reste +${CFG.finalPct}%`} · stop -${CFG.stopPct}%${CFG.trailPct ? ` · trailing ${CFG.trailPct}% (activé à +${CFG.trailActivatePct || 0}%)` : ' · stop BE après TP1'} · frais ${CFG.feePct}%/ordre · spread 0.05%`,
     `Niveaux vus   : launchpad médian ${lp.length ? lp[Math.floor(lp.length / 2)] : '—'} pts · mur médian ${wall.length ? wall[Math.floor(wall.length / 2)] : '—'} pts`,
     `Référence     : BTC ${pct(btcRet)} · token médian de l'univers ${pct(median)} sur la période`,
     '',
