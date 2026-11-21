@@ -23,7 +23,10 @@ const CACHE = path.join(HERE, 'cache');
 const OUT = path.join(HERE, 'results');
 const arg = (name, def) => {
   const i = process.argv.indexOf(`--${name}`);
-  return i > 0 ? Number(process.argv[i + 1]) : def;
+  if (i < 0) return def;
+  const v = parseFloat(process.argv[i + 1]);
+  if (!Number.isFinite(v)) { console.error(`Valeur invalide pour --${name}: ${process.argv[i + 1]}`); process.exit(1); }
+  return v;
 };
 const HOURS = arg('hours', 0);
 const DAYS = HOURS > 0 ? HOURS / 24 : arg('days', 30);
