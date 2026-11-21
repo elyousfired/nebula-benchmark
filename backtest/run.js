@@ -16,6 +16,7 @@ import { bybitGet, fetchTickers, pool, setProxy, currentRoute } from '../src/lib
 import { selectUniverse } from '../src/core/universe.js';
 import { DEFAULT_CONFIG } from '../bot/engine.js';
 import { simulate, rolling24h, Q } from './sim.js';
+import { simulate1m } from './sim1m.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CACHE = path.join(HERE, 'cache');
@@ -40,6 +41,8 @@ if (process.argv.includes('--final')) CFG.finalPct = arg('final', CFG.finalPct);
 if (process.argv.includes('--no-tp1')) CFG.useTp1 = false;
 if (process.argv.includes('--no-final')) CFG.useFinal = false;
 const MAX_RANK = arg('max-rank', 50);
+// Minute precision (mirrors the live bot) by default up to 7 days; --fast forces 15m steps, --precise forces 1m.
+const PRECISE = process.argv.includes('--precise') || (!process.argv.includes('--fast') && DAYS <= 7);
 
 setProxy(process.env.BOT_PROXY || 'https://nebula-benchmark.vercel.app/api/bybit');
 fs.mkdirSync(CACHE, { recursive: true });
@@ -77,11 +80,11 @@ async function klines15(symbol, fromMs, toMs) {
   return sorted;
 }
 
-async function klinesRange(symbol, fromMs, toMs) {
+async function klinesRange(symbol, fromMs, toMs, interval = '15') {
   const rows = new Map();
   let end = toMs;
   for (let guard = 0; guard < 20 && end > fromMs; guard++) {
-    const r = await bybitGet('kline', { category: 'spot', symbol, interval: '15', limit: '1000', end: String(end) });
+    const r = await bybitGet('kline', { category: 'spot', symbol, interval, limit: '1000', end: String(end) });
     const list = r.list || [];
     if (!list.length) break;
     let oldest = Infinity;
@@ -148,6 +151,20 @@ function writeTrades(file, res) {
   fs.writeFileSync(file, `${rows.join('\n')}\n`);
 }
 
+async function klines1m(symbol, fromMs, toMs) {
+  const file = path.join(CACHE, `${symbol}_1m.json`);
+  let rows = [];
+  try { rows = JSON.parse(fs.readFileSync(file, 'utf8')).rows; } catch { /* none */ }
+  const have = new Map(rows.map((r) => [r[0], r]));
+  const first = rows.length ? rows[0][0] : Infinity;
+  const last = rows.length ? rows[rows.length - 1][0] : -Infinity;
+  if (first > fromMs) for (const r of await klinesRange(symbol, fromMs, Math.min(toMs, first - 1), '1')) have.set(r[0], r);
+  if (last + 60_000 <= toMs) for (const r of await klinesRange(symbol, Math.max(fromMs, last), toMs, '1')) have.set(r[0], r);
+  const out = [...have.values()].sort((a, b) => a[0] - b[0]);
+  fs.writeFileSync(file, JSON.stringify({ rows: out }));
+  return out.filter((r) => r[0] >= fromMs && r[0] <= toMs);
+}
+
 async function main() {
   const now = Date.now();
   const lastClosedOpen = Math.floor(now / Q) * Q - Q; // open time of the last CLOSED candle
@@ -191,8 +208,37 @@ async function main() {
   log(`Simulation sur ${T.length - startIdx} bougies × ${Object.keys(tokens).length} tokens…`);
 
   const ctx = { start: start + Q, listAll: DAYS <= 2 };
-  const A = simulate({ T, tokens, startIdx, cfg: CFG, maxRank: MAX_RANK });
-  const B = simulate({ T, tokens, startIdx, cfg: CFG, minTurnoverEntry: 1_000_000, maxRank: MAX_RANK });
+  let A;
+  let B;
+  let endT = lastClosedOpen + Q;
+  if (PRECISE) {
+    const m0 = start + Q; // first minute of the window
+    const mEnd = Math.min(Math.floor(Date.now() / 60_000) * 60_000 - 60_000, lastClosedOpen + 2 * Q - 60_000); // last CLOSED minute (within the 15m grid)
+    log(`Précision 1 minute (comme le bot): téléchargement des bougies 1m…`);
+    endT = mEnd + 60_000;
+    const T1 = [];
+    for (let t = m0; t <= mEnd; t += 60_000) T1.push(t);
+    const idx1 = new Map(T1.map((t, i) => [t, i]));
+    let n = 0;
+    await pool(Object.keys(tokens), async (s) => {
+      const rows = await klines1m(s, m0, mEnd);
+      const mk = () => new Float64Array(T1.length).fill(NaN);
+      const m = { o: mk(), h: mk(), l: mk(), c: mk() };
+      for (const r of rows) { const i = idx1.get(r[0]); if (i == null) continue; m.o[i] = r[1]; m.h[i] = r[2]; m.l[i] = r[3]; m.c[i] = r[4]; }
+      // carry the last price through minutes without trades
+      for (let i = 1; i < T1.length; i++) if (!(m.c[i] > 0) && m.c[i - 1] > 0) { m.o[i] = m.h[i] = m.l[i] = m.c[i] = m.c[i - 1]; }
+      tokens[s].m = m;
+      n++;
+      if (n % 50 === 0) log(`  1m ${n}/${Object.keys(tokens).length}`);
+    }, { concurrency: 6 });
+    // 15m grid must reach the candle before the forming one
+    log(`Simulation minute par minute: ${T1.length} minutes × ${Object.keys(tokens).length} tokens…`);
+    A = simulate1m({ T15: T, T1, tokens, cfg: CFG, maxRank: MAX_RANK });
+    B = simulate1m({ T15: T, T1, tokens, cfg: CFG, minTurnoverEntry: 1_000_000, maxRank: MAX_RANK });
+  } else {
+    A = simulate({ T, tokens, startIdx, cfg: CFG, maxRank: MAX_RANK });
+    B = simulate({ T, tokens, startIdx, cfg: CFG, minTurnoverEntry: 1_000_000, maxRank: MAX_RANK });
+  }
 
   // References
   const btc = raw.BTCUSDT || [];
@@ -205,7 +251,7 @@ async function main() {
 
   const text = [
     '═══════════════ BACKTEST LAUNCHPAD (walk-forward, sans look-ahead) ═══════════════',
-    `Période       : ${new Date(start + Q).toISOString().slice(0, 16)} → ${new Date(lastClosedOpen + Q).toISOString().slice(0, 16)} UTC (${HOURS > 0 ? `${HOURS} h` : `${DAYS} j`}) · pas de 15 min · ${Object.keys(tokens).length} tokens`,
+    `Période       : ${new Date(start + Q).toISOString().slice(0, 16)} → ${new Date(endT).toISOString().slice(0, 16)} UTC (${HOURS > 0 ? `${HOURS} h` : `${DAYS} j`}) · pas de ${PRECISE ? '1 min (comme le bot)' : '15 min'} · ${Object.keys(tokens).length} tokens`,
     `Règles        : entrée croisement Launchpad 24H (Top ${MAX_RANK} score 30D) · ${CFG.useTp1 === false ? 'pas de TP1' : '50% au mur'} · ${CFG.useFinal === false ? 'pas de target final' : `reste +${CFG.finalPct}%`} · stop -${CFG.stopPct}%${CFG.trailPct ? ` · trailing ${CFG.trailPct}% (activé à +${CFG.trailActivatePct || 0}%)` : ' · stop BE après TP1'} · frais ${CFG.feePct}%/ordre · spread 0.05%`,
     `Niveaux vus   : launchpad médian ${lp.length ? lp[Math.floor(lp.length / 2)] : '—'} pts · mur médian ${wall.length ? wall[Math.floor(wall.length / 2)] : '—'} pts`,
     `Référence     : BTC ${pct(btcRet)} · token médian de l'univers ${pct(median)} sur la période`,
