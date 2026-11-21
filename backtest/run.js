@@ -177,7 +177,7 @@ async function main() {
   const start = SINCE ? Math.floor(SINCE / Q) * Q - Q : lastClosedOpen - DAYS * 86_400_000;
   const from = start - WARMUP_DAYS * 86_400_000;
 
-  log(`Backtest Launchpad · ${HOURS > 0 ? `${HOURS} h` : `${DAYS} jours`} · du ${new Date(start + Q).toISOString().slice(0, 16)} au ${new Date(lastClosedOpen + Q).toISOString().slice(0, 16)} UTC`);
+  log(`Backtest Launchpad · ${HOURS > 0 ? `${+HOURS.toFixed(2)} h` : `${DAYS} jours`} · du ${new Date(start + Q).toISOString().slice(0, 16)} au ${new Date(lastClosedOpen + Q).toISOString().slice(0, 16)} UTC`);
   const tickers = await fetchTickers();
   const universe = selectUniverse(tickers, { limit: 500, minTurnover: 10_000 }).map((t) => t.symbol);
   log(`Univers: ${universe.length} paires Bybit spot (+BTC pour référence). Téléchargement des bougies 15m (cache 6 h)…`);
@@ -257,7 +257,7 @@ async function main() {
 
   const text = [
     '═══════════════ BACKTEST LAUNCHPAD (walk-forward, sans look-ahead) ═══════════════',
-    `Période       : ${new Date(start + Q).toISOString().slice(0, 16)} → ${new Date(endT).toISOString().slice(0, 16)} UTC (${HOURS > 0 ? `${HOURS} h` : `${DAYS} j`}) · pas de ${PRECISE ? '1 min (comme le bot)' : '15 min'} · ${Object.keys(tokens).length} tokens`,
+    `Période       : ${new Date(start + Q).toISOString().slice(0, 16)} → ${new Date(endT).toISOString().slice(0, 16)} UTC (${HOURS > 0 ? `${+HOURS.toFixed(2)} h` : `${DAYS} j`}) · pas de ${PRECISE ? '1 min (comme le bot)' : '15 min'} · ${Object.keys(tokens).length} tokens`,
     `Règles        : entrée croisement Launchpad 24H (Top ${MAX_RANK} score 30D) · ${CFG.useTp1 === false ? 'pas de TP1' : '50% au mur'} · ${CFG.useFinal === false ? 'pas de target final' : `reste +${CFG.finalPct}%`} · stop -${CFG.stopPct}%${CFG.trailPct ? ` · trailing ${CFG.trailPct}% (activé à +${CFG.trailActivatePct || 0}%)` : ' · stop BE après TP1'} · frais ${CFG.feePct}%/ordre · spread 0.05%`,
     `Niveaux vus   : launchpad médian ${lp.length ? lp[Math.floor(lp.length / 2)] : '—'} pts · mur médian ${wall.length ? wall[Math.floor(wall.length / 2)] : '—'} pts`,
     `Référence     : BTC ${pct(btcRet)} · token médian de l'univers ${pct(median)} sur la période`,
