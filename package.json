@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "node --test test/*.test.js",
     "bot": "node bot/run.js",
-    "bot:report": "node bot/run.js --report"
+    "bot:report": "node bot/run.js --report",
+    "backtest": "node backtest/run.js"
   },
   "dependencies": {
     "react": "^19.0.0",

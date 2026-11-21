@@ -60,7 +60,8 @@ export function mockKlines(symbol, interval, limit, now) {
   const n = Math.min(Number(limit) || 200, 1000);
   // One 15m path (~42 days) aggregated to the requested interval, so 15m / 1H
   // series and the ticker price are consistent with each other.
-  const all = path15(symbol, now);
+  const endT = Math.floor(now / Q) * Q;
+  const all = path15(symbol, now).filter((r) => r[0] <= endT);
   const base = all.slice(Math.max(0, all.length - 4040));
   const rows = [];
   for (const r of base) {

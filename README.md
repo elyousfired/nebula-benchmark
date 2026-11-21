@@ -97,3 +97,19 @@ You can change the parameters in `bot/config.json`, for example:
 - Prices are polled every 10 s, so a very fast wick can be missed.
 - The bot only runs while the PC is on and awake. After a pause, it does not re-enter on a stale crossing.
 - An offline test on accelerated synthetic data is available: `BOT_MOCK=1 npm run bot`.
+
+## Backtest (`backtest/`)
+
+```bash
+npm run backtest                # last 30 days
+npm run backtest -- --days 14   # another window
+```
+
+The script downloads about 61 days of 15m candles for the Bybit spot universe. The download is cached for 6 h in `backtest/cache/`. It then replays the paper bot's exact rules (`bot/engine.js`) every 15 minutes, **with no look-ahead**: the 30D score, the Top 50, the Launchpad and the Wall are computed at each step only from past data.
+
+Results go to `backtest/results/`: `summary.txt`, `trades-A-all.csv` and `trades-B-liquid.csv` (entries only on tokens with at least $1M of 24h turnover).
+
+Limits:
+- The universe is the pairs listed today, so delisted tokens are missing.
+- Signals are detected every 15 min, while the real bot checks every 10 s.
+- The order of prices inside a candle is assumed.

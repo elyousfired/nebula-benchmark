@@ -2,3 +2,5 @@ node_modules/
 dist/
 .vercel
 bot/data/
+backtest/cache/
+backtest/results/
