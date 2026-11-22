@@ -59,6 +59,21 @@ export function path7d(b1h, k, entry) {
   return { max7d: hi / entry - 1, min7d: lo / entry - 1, maxAtH: at };
 }
 
+/**
+ * Take profit at +target if a 1H high reaches it within `hours`, otherwise exit
+ * at the close `hours` after entry. No stop. Net of fees. null without enough data.
+ */
+export function exitTargetOrTime(b1h, k, entry, { target = 0.10, hours = 48 } = {}) {
+  const end = b1h.t[k] + HOUR + hours * HOUR;
+  if (b1h.t[b1h.t.length - 1] + HOUR < end) return null;
+  const tp = entry * (1 + target);
+  let i = k + 1;
+  for (; i < b1h.t.length && b1h.t[i] < end; i++) {
+    if (b1h.h[i] >= tp) return { outcome: 'TP', ret: (tp * (1 - FEE)) / (entry * (1 + FEE)) - 1, hours: i - k, t: b1h.t[i] + HOUR };
+  }
+  return { outcome: 'TIME', ret: (b1h.c[i - 1] * (1 - FEE)) / (entry * (1 + FEE)) - 1, hours: i - 1 - k, t: b1h.t[i - 1] + HOUR };
+}
+
 /** 24h / 7d turnover ratio at 1H index k (closed candles only). */
 function volRatioAt(b1h, k) {
   if (k < 167) return null;
@@ -112,6 +127,7 @@ export function findSignals({ symbol, b4, b1h, btcDaily, from, cooldownDays = 3 
       r24h: fwd(24), r3d: fwd(72), r7d: fwd(168),
       days: [1, 2, 3, 4, 5, 6, 7].map((d) => fwd(24 * d)),
       ...path7d(b1h, k, entry),
+      tp10: exitTargetOrTime(b1h, k, entry, { target: 0.10, hours: 48 }),
       plan: simulateExit(b1h, k, { entry, high: box.high, low: box.low }),
     });
   }

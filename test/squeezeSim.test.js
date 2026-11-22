@@ -39,3 +39,16 @@ test('simulateExit: box 90-100 -> stop 95, target 110', () => {
   assert.equal(time.outcome, 'TIME');
   assert.equal(simulateExit(mk(flat(5)), 0, { ...box, maxDays: 1 }), null); // not enough future
 });
+
+test('exitTargetOrTime: +10% within 48h else close at 48h', async () => {
+  const { exitTargetOrTime } = await import('../backtest/squeezeSim.js');
+  const mkb = (rows) => { const b = { t: [], o: [], h: [], l: [], c: [], v: [], q: [] }; rows.forEach(([h, l, c], i) => { b.t.push(i * HOUR); b.o.push(c); b.h.push(h); b.l.push(l); b.c.push(c); b.v.push(1); b.q.push(1); }); return b; };
+  const base = Array.from({ length: 60 }, () => [101, 99, 100]);
+  const hit = base.map((r, i) => (i === 20 ? [111, 99, 105] : r));
+  const a = exitTargetOrTime(mkb(hit), 0, 100);
+  assert.equal(a.outcome, 'TP'); assert.ok(Math.abs(a.ret - (110 * 0.999) / (100 * 1.001) + 1) < 1e-12);
+  const late = base.map((r, i) => (i === 55 ? [111, 99, 105] : i === 48 ? [101, 90, 95] : r));
+  const b = exitTargetOrTime(mkb(late), 0, 100);
+  assert.equal(b.outcome, 'TIME'); assert.equal(b.hours, 48);
+  assert.equal(exitTargetOrTime(mkb(base.slice(0, 30)), 0, 100), null);
+});
