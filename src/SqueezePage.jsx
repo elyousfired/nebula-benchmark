@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useMarketScan } from './hooks/useMarketScan.js';
-import { topList } from './core/scoring.js';
 import { classify, sortRows } from './core/squeeze.js';
 import { fetchTickers } from './lib/bybit.js';
 import { Header } from './components/Panels.jsx';
@@ -15,8 +13,11 @@ const REG = { bull: ['live', 'BULL'], chop: ['scan', 'CHOP'], bear: ['err', 'BEA
 function loadSeen() { try { return new Set(JSON.parse(localStorage.getItem(SEEN_KEY) || '[]')); } catch { return new Set(); } }
 function saveSeen(s) { try { localStorage.setItem(SEEN_KEY, JSON.stringify([...s].slice(-300))); } catch { /* ignore */ } }
 
-export default function SqueezePage() {
-  const scan = useMarketScan();
+/**
+ * `top50` is App's own topList(tokens, 'month', 50, 'score') from the shared
+ * scan: the same tokens at the same moment as the main page, not a recompute.
+ */
+export default function SqueezePage({ scan, top50, onBack }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
   const [prices, setPrices] = useState({});
@@ -24,12 +25,9 @@ export default function SqueezePage() {
   const [perm, setPerm] = useState(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
   const seenRef = useRef(null);
 
-  // Same Top 50 (30D score) as the main page.
   const ready = scan.status === 'ready' && !scan.scanning;
-  const key = useMemo(
-    () => (ready ? topList(scan.tokens, 'month', 50, 'score').map((t) => t.symbol).sort().join(',') : ''),
-    [ready, scan.tokens],
-  );
+  const ranks = useMemo(() => Object.fromEntries(top50.map((t) => [t.symbol, t.rank])), [top50]);
+  const key = useMemo(() => (ready ? top50.map((t) => t.symbol).sort().join(',') : ''), [ready, top50]);
 
   useEffect(() => {
     if (!key) return undefined;
@@ -51,10 +49,12 @@ export default function SqueezePage() {
   }, []);
 
   // Live price -> distance and COILED/QUIET re-evaluated; BREAKOUT comes from closed 1H candles.
-  const rows = useMemo(() => sortRows((data?.rows || []).map((r) => {
+  // Only symbols in the current Top 50, with its live rank.
+  const rows = useMemo(() => sortRows((data?.rows || []).filter((r) => ranks[r.symbol]).map((r) => {
     const price = prices[r.symbol] > 0 ? prices[r.symbol] : r.price;
-    return { ...r, price, distPct: r.high / price - 1, status: classify({ quiet: r.quietPct, price, ceiling: r.high, breakout: r.breakout }) };
-  })), [data, prices]);
+    return { ...r, rank: ranks[r.symbol], price, distPct: r.high / price - 1, status: classify({ quiet: r.quietPct, price, ceiling: r.high, breakout: r.breakout }) };
+  })), [data, prices, ranks]);
+  const missing = top50.filter((t) => !rows.some((r) => r.symbol === t.symbol)).map((t) => t.symbol.replace('USDT', ''));
 
   // Notify on new breakouts (first load only marks what is already there).
   useEffect(() => {
@@ -80,7 +80,8 @@ export default function SqueezePage() {
   return (
     <div className="app">
       <Header scan={scan} onRescan={scan.rescan} />
-      <nav className="controls"><a className="btn" href="/">← Benchmark</a><span className="card-title">SQUEEZE RADAR · TOP 50 SCORE 30D</span></nav>
+      <nav className="controls"><a className="btn" href="/" onClick={onBack}>← Benchmark</a><span className="card-title">SQUEEZE RADAR · TOP 50 SCORE 30D</span>
+        <span className="muted small">{rows.length}/{top50.length} du Top 50{missing.length ? ` · sans données : ${missing.join(', ')}` : ''}</span></nav>
 
       <div className="card sentiment">
         {reg ? (
@@ -115,10 +116,11 @@ export default function SqueezePage() {
         ) : (
           <div className="table-wrap">
             <table className="sq-table">
-              <thead><tr><th>Token</th><th>État</th><th>Prix</th><th>Plafond 14J</th><th>Plancher</th><th>Dist.</th><th>Rng14</th><th>Quiet %</th><th>Vol 24h/7J</th></tr></thead>
+              <thead><tr><th>Rank</th><th>Token</th><th>État</th><th>Prix</th><th>Plafond 14J</th><th>Plancher</th><th>Dist.</th><th>Rng14</th><th>Quiet %</th><th>Vol 24h/7J</th></tr></thead>
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.symbol} className={sel === r.symbol ? 'on' : ''} onClick={() => setSel(sel === r.symbol ? null : r.symbol)}>
+                    <td className="muted">#{r.rank}</td>
                     <td><b>{r.symbol.replace('USDT', '')}</b></td>
                     <td><span className={`sq-st ${r.status}`}>{r.status}</span></td>
                     <td>{fmtPrice(r.price)}</td>

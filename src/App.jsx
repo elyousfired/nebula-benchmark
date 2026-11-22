@@ -12,6 +12,9 @@ import { PerfChart } from './components/PerfChart.jsx';
 import { TokenTable } from './components/TokenTable.jsx';
 import { Header, Controls, SentimentBar, VolumeProfilePanel, QuantPanel, SignalsPanel, Toast } from './components/Panels.jsx';
 import { colorOf, fmtPts } from './lib/format.js';
+import SqueezePage from './SqueezePage.jsx';
+
+const routeOf = () => (window.location.pathname.replace(/\/$/, '') === '/squeeze' ? 'squeeze' : 'main');
 
 const OPTS_KEY = 'nebula_bench_v2_opts';
 const DEFAULT_OPTS = { universe: 'score', horizon: 'month', topN: 50, showBench: true, showLevels: true, showProfile: true };
@@ -30,6 +33,10 @@ function pickBucket(curves) {
 
 export default function App() {
   const scan = useMarketScan();
+  // One scan for both pages: switching route never rescans, so /squeeze sees the exact same Top 50.
+  const [route, setRoute] = useState(routeOf);
+  useEffect(() => { const f = () => setRoute(routeOf()); window.addEventListener('popstate', f); return () => window.removeEventListener('popstate', f); }, []);
+  const go = (path) => (e) => { e.preventDefault(); window.history.pushState(null, '', path); setRoute(routeOf()); window.scrollTo(0, 0); };
   const [opts, setOpts] = useState(loadOpts);
   const [highlight, setHighlight] = useState(null);
   const [caps, setCaps] = useState({});
@@ -98,11 +105,13 @@ export default function App() {
   const lastEma = chart.ema.length ? chart.ema[chart.ema.length - 1].v : null;
   const hLabel = HORIZONS[opts.horizon].label;
 
+  if (route === 'squeeze') return <SqueezePage scan={scan} top50={alertList} onBack={go('/')} />;
+
   return (
     <div className="app">
       <Header scan={scan} onRescan={scan.rescan} />
       <Controls opts={opts} set={set} />
-      <div className="controls"><a className="btn" href="/squeeze">📦 Squeeze Radar →</a></div>
+      <div className="controls"><a className="btn" href="/squeeze" onClick={go('/squeeze')}>📦 Squeeze Radar →</a></div>
 
       {tokens.length === 0 ? (
         <div className="card empty">

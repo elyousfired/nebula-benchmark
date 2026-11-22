@@ -6,6 +6,6 @@ import './styles.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    {window.location.pathname.replace(/\/$/, '') === '/squeeze' ? <SqueezePage /> : <App />}
+    <App />
   </StrictMode>,
 );
