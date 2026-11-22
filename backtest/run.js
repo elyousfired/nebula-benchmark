@@ -15,7 +15,8 @@ import { fileURLToPath } from 'node:url';
 import { bybitGet, fetchTickers, pool, setProxy, currentRoute } from '../src/lib/bybit.js';
 import { selectUniverse } from '../src/core/universe.js';
 import { DEFAULT_CONFIG } from '../bot/engine.js';
-import { simulate, rolling24h, Q } from './sim.js';
+import { simulate, rolling24h, atr4hSeries, Q } from './sim.js';
+import { portfolio } from './portfolio.js';
 import { simulate1m } from './sim1m.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -47,6 +48,10 @@ if (process.argv.includes('--final')) CFG.finalPct = arg('final', CFG.finalPct);
 if (process.argv.includes('--no-tp1')) CFG.useTp1 = false;
 if (process.argv.includes('--no-final')) CFG.useFinal = false;
 const MAX_RANK = arg('max-rank', 50);
+if (process.argv.includes('--slots')) CFG.maxOpen = arg('slots', 5);
+if (process.argv.includes('--atr-stop')) CFG.atrStopMult = arg('atr-stop', 1.5);
+if (process.argv.includes('--chandelier')) CFG.chandelierMult = arg('chandelier', 3);
+const OFFLINE = process.argv.includes('--offline');
 // Minute precision (mirrors the live bot) by default up to 7 days; --fast forces 15m steps, --precise forces 1m.
 const PRECISE = process.argv.includes('--precise') || (!process.argv.includes('--fast') && DAYS <= 7);
 
@@ -130,7 +135,12 @@ function report(name, res, ctx) {
     for (const t of res.closed) L.push(`   ✔ ${t.symbol.padEnd(14)} entrée ${hm(t.openedAt)} @ ${t.entry} → ${t.fills.map((f) => `${f.reason} ${hm(f.at)} @ ${f.price}`).join(' + ')}  ${pct(t.pnlPct)}`);
     for (const p of res.open) L.push(`   … ${p.symbol.padEnd(14)} entrée ${hm(p.openedAt)} @ ${p.entry} (stop ${p.stop}${p.tp1 ? `, TP1 ${p.tp1}` : ''}) en cours ${pct(p.markPct)}`);
   }
-  L.push(`Signaux ignorés    : chase ${res.skipped.chase} · mur trop proche ${res.skipped.wall} · liquidité ${res.skipped.liquidity} · cooldown ${res.skipped.cooldown}`);
+  if (CFG.maxOpen > 0) {
+    const pf = portfolio(res.closed, res.open, CFG.maxOpen);
+    L.push(`CAPITAL (÷${CFG.maxOpen}) : ${pct(pf.returnPct)} réalisé · ${pct(pf.returnWithOpenPct)} avec positions ouvertes · max drawdown ${pct(pf.maxDrawdownPct)}`);
+    L.push(`Style              : plus longue série de pertes ${pf.maxLosingStreak} · top 3 gains = ${pf.top3ShareOfGains == null ? '—' : `${(pf.top3ShareOfGains * 100).toFixed(0)}%`} des gains`);
+  }
+  L.push(`Signaux ignorés    : chase ${res.skipped.chase} · mur trop proche ${res.skipped.wall} · liquidité ${res.skipped.liquidity} · cooldown ${res.skipped.cooldown}${res.skipped.slots ? ` · slots pleins ${res.skipped.slots}` : ''}`);
   // weekly split
   const byWeek = {};
   for (const t of res.closed) {
@@ -171,21 +181,30 @@ async function klines1m(symbol, fromMs, toMs) {
   return out.filter((r) => r[0] >= fromMs && r[0] <= toMs);
 }
 
+function offlineNow() {
+  // End of the cached data (BTC 15m), so an offline run replays exactly what is on disk.
+  const c = JSON.parse(fs.readFileSync(path.join(CACHE, 'BTCUSDT.json'), 'utf8'));
+  return c.rows[c.rows.length - 1][0] + 2 * Q;
+}
+
 async function main() {
-  const now = Date.now();
+  const now = OFFLINE ? offlineNow() : Date.now();
   const lastClosedOpen = Math.floor(now / Q) * Q - Q; // open time of the last CLOSED candle
   const start = SINCE ? Math.floor(SINCE / Q) * Q - Q : lastClosedOpen - DAYS * 86_400_000;
   const from = start - WARMUP_DAYS * 86_400_000;
 
   log(`Backtest Launchpad · ${HOURS > 0 ? `${+HOURS.toFixed(2)} h` : `${DAYS} jours`} · du ${new Date(start + Q).toISOString().slice(0, 16)} au ${new Date(lastClosedOpen + Q).toISOString().slice(0, 16)} UTC`);
-  const tickers = await fetchTickers();
-  const universe = selectUniverse(tickers, { limit: 500, minTurnover: 10_000 }).map((t) => t.symbol);
+  const universe = OFFLINE
+    ? fs.readdirSync(CACHE).filter((f) => /^[A-Z0-9]+USDT\.json$/.test(f) && f !== 'BTCUSDT.json').map((f) => f.replace('.json', ''))
+    : selectUniverse(await fetchTickers(), { limit: 500, minTurnover: 10_000 }).map((t) => t.symbol);
   log(`Univers: ${universe.length} paires Bybit spot (+BTC pour référence). Téléchargement des bougies 15m (cache 6 h)…`);
 
   const raw = {};
   let done = 0;
   const res = await pool([...universe, 'BTCUSDT'], async (s) => {
-    raw[s] = await klines15(s, from, lastClosedOpen + Q - 1);
+    raw[s] = OFFLINE
+      ? JSON.parse(fs.readFileSync(path.join(CACHE, `${s}.json`), 'utf8')).rows.filter((r) => r[0] >= from && r[0] <= lastClosedOpen)
+      : await klines15(s, from, lastClosedOpen + Q - 1);
     done++;
     if (done % 50 === 0) log(`  ${done}/${universe.length + 1}`);
   }, { concurrency: 6 });
@@ -208,6 +227,7 @@ async function main() {
       tk.o[i] = r[1]; tk.h[i] = r[2]; tk.l[i] = r[3]; tk.c[i] = r[4]; tk.q[i] = r[5];
     }
     tk.turn24 = rolling24h(tk.q);
+    tk.atr4 = atr4hSeries(tk, T);
     tokens[s] = tk;
   }
   const startIdx = idx.get(start);
@@ -219,7 +239,7 @@ async function main() {
   let endT = lastClosedOpen + Q;
   if (PRECISE) {
     const m0 = start + Q; // first minute of the window
-    const mEnd = Math.min(Math.floor(Date.now() / 60_000) * 60_000 - 60_000, lastClosedOpen + 2 * Q - 60_000); // last CLOSED minute (within the 15m grid)
+    const mEnd = Math.min(Math.floor((OFFLINE ? now : Date.now()) / 60_000) * 60_000 - 60_000, lastClosedOpen + 2 * Q - 60_000); // last CLOSED minute (within the 15m grid)
     log(`Précision 1 minute (comme le bot): téléchargement des bougies 1m…`);
     endT = mEnd + 60_000;
     const T1 = [];
@@ -227,7 +247,9 @@ async function main() {
     const idx1 = new Map(T1.map((t, i) => [t, i]));
     let n = 0;
     await pool(Object.keys(tokens), async (s) => {
-      const rows = await klines1m(s, m0, mEnd);
+      const rows = OFFLINE
+        ? (() => { try { return JSON.parse(fs.readFileSync(path.join(CACHE, `${s}_1m.json`), 'utf8')).rows.filter((r) => r[0] >= m0 && r[0] <= mEnd); } catch { return []; } })()
+        : await klines1m(s, m0, mEnd);
       const mk = () => new Float64Array(T1.length).fill(NaN);
       const m = { o: mk(), h: mk(), l: mk(), c: mk() };
       for (const r of rows) { const i = idx1.get(r[0]); if (i == null) continue; m.o[i] = r[1]; m.h[i] = r[2]; m.l[i] = r[3]; m.c[i] = r[4]; }
@@ -258,7 +280,7 @@ async function main() {
   const text = [
     '═══════════════ BACKTEST LAUNCHPAD (walk-forward, sans look-ahead) ═══════════════',
     `Période       : ${new Date(start + Q).toISOString().slice(0, 16)} → ${new Date(endT).toISOString().slice(0, 16)} UTC (${HOURS > 0 ? `${+HOURS.toFixed(2)} h` : `${DAYS} j`}) · pas de ${PRECISE ? '1 min (comme le bot)' : '15 min'} · ${Object.keys(tokens).length} tokens`,
-    `Règles        : entrée croisement Launchpad 24H (Top ${MAX_RANK} score 30D) · ${CFG.useTp1 === false ? 'pas de TP1' : '50% au mur'} · ${CFG.useFinal === false ? 'pas de target final' : `reste +${CFG.finalPct}%`} · stop -${CFG.stopPct}%${CFG.trailPct ? ` · trailing ${CFG.trailPct}% (activé à +${CFG.trailActivatePct || 0}%)` : ' · stop BE après TP1'} · frais ${CFG.feePct}%/ordre · spread 0.05%`,
+    `Règles        : entrée croisement Launchpad 24H (Top ${MAX_RANK} score 30D) · ${CFG.useTp1 === false ? 'pas de TP1' : '50% au mur'} · ${CFG.useFinal === false ? 'pas de target final' : `reste +${CFG.finalPct}%`} · ${CFG.atrStopMult ? `SL ${CFG.atrStopMult}×ATR4H` : `stop -${CFG.stopPct}%`}${CFG.trailPct ? ` · trailing ${CFG.trailPct}% (activé à +${CFG.trailActivatePct || 0}%)` : ''}${CFG.chandelierMult ? ` · chandelier ${CFG.chandelierMult}×ATR4H` : ''}${CFG.maxOpen ? ` · ${CFG.maxOpen} slots` : ''} · frais ${CFG.feePct}%/ordre · spread 0.05%`,
     `Niveaux vus   : launchpad médian ${lp.length ? lp[Math.floor(lp.length / 2)] : '—'} pts · mur médian ${wall.length ? wall[Math.floor(wall.length / 2)] : '—'} pts`,
     `Référence     : BTC ${pct(btcRet)} · token médian de l'univers ${pct(median)} sur la période`,
     '',

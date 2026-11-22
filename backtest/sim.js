@@ -72,14 +72,14 @@ export function stepCandle(pos, bar, time, cfg, slip = 0.0005) {
  * @param tokens  { [sym]: { o,h,l,c,q: Float64Array (NaN = missing), turn24: Float64Array } }
  * @param startIdx first step of the test window (needs ≥ 2880+96 bars of history before)
  */
-export function simulate({ T, tokens, startIdx, cfg = DEFAULT_CONFIG, minTurnoverUniverse = 10_000, minTurnoverEntry = 0, maxRank = 50, spread = 0.0005 }) {
+export function simulate({ T, tokens, startIdx, cfg = DEFAULT_CONFIG, minTurnoverUniverse = 10_000, minTurnoverEntry = 0, maxRank = 50, spread = 0.0005, maxOpen = cfg.maxOpen || 0 }) {
   const syms = Object.keys(tokens);
   const open = [];
   const closed = [];
   const cooldown = {};
   const levelsLog = [];
   let prevPts = null;
-  let skipped = { chase: 0, wall: 0, liquidity: 0, cooldown: 0 };
+  let skipped = { chase: 0, wall: 0, liquidity: 0, cooldown: 0, slots: 0 };
 
   for (let i = startIdx; i < T.length; i++) {
     const now = T[i] + Q; // close time of candle i
@@ -125,15 +125,16 @@ export function simulate({ T, tokens, startIdx, cfg = DEFAULT_CONFIG, minTurnove
 
     // 4) entries at the close of candle i
     const prevForCross = prevPts;
-    for (const s of detectCrossings(prevForCross, pts, levels.entry, Infinity)) {
+    for (const s of detectCrossings(prevForCross, pts, levels.entry, Infinity).sort((a, b) => (ranks[a] ?? 99) - (ranks[b] ?? 99))) {
       if (pts[s] > levels.entry + cfg.maxChasePts) { skipped.chase++; continue; }
       if (open.some((p) => p.symbol === s)) continue;
       if ((ranks[s] ?? 99) > maxRank) continue;
+      if (maxOpen > 0 && open.length >= maxOpen) { skipped.slots++; continue; }
       if (now - (cooldown[s] || 0) < cfg.cooldownMs) { skipped.cooldown++; continue; }
       const tk = tokens[s];
       if (!(tk.turn24[i] >= minTurnoverEntry)) { skipped.liquidity++; continue; }
       const last = tk.c[i];
-      const r = openPosition({ symbol: s, ask: last * (1 + spread), last, curvePts: pts[s], levels, now, rank: ranks[s] }, cfg);
+      const r = openPosition({ symbol: s, ask: last * (1 + spread), last, curvePts: pts[s], levels, now, rank: ranks[s], atr: tk.atr4 ? tk.atr4[i] : undefined }, cfg);
       if (r.skip) { skipped.wall++; continue; }
       open.push({ ...r.position, turnover24h: tk.turn24[i] });
     }
@@ -144,4 +145,42 @@ export function simulate({ T, tokens, startIdx, cfg = DEFAULT_CONFIG, minTurnove
   const lastI = T.length - 1;
   const stillOpen = open.map((p) => ({ ...p, markPct: unrealizedPnlPct(p, tokens[p.symbol].c[lastI], cfg) }));
   return { closed, open: stillOpen, summary: summarize(closed), skipped, levelsLog };
+}
+
+/**
+ * ATR(period) of 4H candles (aligned on UTC) built from the 15m grid, as seen at the
+ * close of each 15m candle: value at i = ATR of the last 4H candle fully closed at
+ * T[i] + 15m (no look-ahead). Wilder smoothing. NaN until enough history.
+ */
+export function atr4hSeries(tk, T, period = 14) {
+  const H4 = 4 * 3_600_000;
+  const out = new Float64Array(T.length).fill(NaN);
+  let bucket = null;
+  let bh = -Infinity;
+  let bl = Infinity;
+  let bc = NaN;
+  let prevClose = NaN;
+  let atr = NaN;
+  let n = 0;
+  let sum = 0;
+  for (let i = 0; i < T.length; i++) {
+    const b = Math.floor(T[i] / H4);
+    if (bucket !== null && b !== bucket && Number.isFinite(bc)) {
+      // close the previous 4H candle
+      const tr = Number.isFinite(prevClose) ? Math.max(bh - bl, Math.abs(bh - prevClose), Math.abs(bl - prevClose)) : bh - bl;
+      if (n < period) { sum += tr; n++; if (n === period) atr = sum / period; } else atr = (atr * (period - 1) + tr) / period;
+      prevClose = bc;
+      bh = -Infinity; bl = Infinity; bc = NaN;
+    }
+    bucket = b;
+    if (tk.h[i] > 0) { bh = Math.max(bh, tk.h[i]); bl = Math.min(bl, tk.l[i]); bc = tk.c[i]; }
+    // value usable at the close of 15m candle i: if this candle closes the 4H bucket,
+    // that 4H candle is complete now.
+    const closesBucket = Math.floor((T[i] + Q) / H4) !== b;
+    if (closesBucket && Number.isFinite(bc)) {
+      const tr = Number.isFinite(prevClose) ? Math.max(bh - bl, Math.abs(bh - prevClose), Math.abs(bl - prevClose)) : bh - bl;
+      out[i] = n < period ? (n + 1 === period ? (sum + tr) / period : NaN) : (atr * (period - 1) + tr) / period;
+    } else out[i] = atr;
+  }
+  return out;
 }

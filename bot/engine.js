@@ -29,6 +29,11 @@ export const DEFAULT_CONFIG = {
   useTp1: true, // 50% at the rejection wall
   useFinal: true, // remaining part at +finalPct%
   maxRank: 50, // only enter tokens ranked <= maxRank by 30D score
+  // Volatility mode (0 = off): initial stop = entry - atrStopMult × ATR, and a chandelier
+  // trailing stop = highest bid since entry - chandelierMult × ATR (ATR frozen at entry).
+  atrStopMult: 0,
+  chandelierMult: 0,
+  maxOpen: 0, // max simultaneous positions (0 = unlimited); e.g. 5 = capital split in 5
 };
 
 const r6 = (x) => Number(x.toPrecision(8));
@@ -55,12 +60,14 @@ export function detectCrossings(prev, now, launchpad, maxChasePts) {
  * @param curvePts   current 24H pts of the token (to recover the 24H base price)
  * @param levels     { entry: launchpadPts, tp: wallPts }
  */
-export function openPosition({ symbol, ask, last, curvePts, levels, now, rank }, cfg = DEFAULT_CONFIG) {
+export function openPosition({ symbol, ask, last, curvePts, levels, now, rank, atr }, cfg = DEFAULT_CONFIG) {
   if (!(ask > 0) || !(last > 0)) return { skip: 'no price' };
   const base24h = last / (1 + curvePts / 100);
   const wallPrice = base24h * (1 + levels.tp / 100);
   const tp1Pct = (wallPrice / ask - 1) * 100;
-  if (tp1Pct < cfg.minTp1Pct) return { skip: `wall too close (+${tp1Pct.toFixed(2)}%)` };
+  if (cfg.useTp1 !== false && tp1Pct < cfg.minTp1Pct) return { skip: `wall too close (+${tp1Pct.toFixed(2)}%)` };
+  const useAtr = cfg.atrStopMult > 0 || cfg.chandelierMult > 0;
+  if (useAtr && !(atr > 0)) return { skip: 'no ATR' };
 
   const finalPrice = cfg.useFinal === false ? Infinity : ask * (1 + cfg.finalPct / 100);
   const partial = cfg.useTp1 !== false && wallPrice < finalPrice;
@@ -75,7 +82,8 @@ export function openPosition({ symbol, ask, last, curvePts, levels, now, rank },
       wallPts: levels.tp,
       tp1: partial ? r6(wallPrice) : null,
       final: Number.isFinite(finalPrice) ? r6(finalPrice) : null,
-      stop: r6(ask * (1 - cfg.stopPct / 100)),
+      stop: r6(cfg.atrStopMult > 0 ? ask - cfg.atrStopMult * atr : ask * (1 - cfg.stopPct / 100)),
+      atr: useAtr ? atr : null,
       remaining: 1, // fraction of the position still open
       fills: [], // { at, price, share, reason }
       status: 'OPEN',
@@ -100,6 +108,12 @@ export function updatePosition(position, { bid, now }, cfg = DEFAULT_CONFIG) {
   const events = [];
   pos.maxPrice = Math.max(pos.maxPrice, bid);
   pos.minPrice = Math.min(pos.minPrice, bid);
+
+  // Chandelier trailing stop (volatility mode).
+  if (cfg.chandelierMult > 0 && pos.atr > 0) {
+    const ch = r6(pos.maxPrice - cfg.chandelierMult * pos.atr);
+    if (ch > pos.stop) { pos.stop = ch; pos.trailing = true; }
+  }
 
   // Trailing stop: ratchet the stop up behind the best bid.
   if (cfg.trailPct > 0 && pos.maxPrice >= pos.entry * (1 + (cfg.trailActivatePct || 0) / 100)) {

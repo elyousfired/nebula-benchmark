@@ -19,14 +19,14 @@ const LAGS = { m15: 15 * M, h1: 60 * M, h4: 240 * M, d1: 1440 * M, w1: 7 * 1440 
  * @param T15     15m grid (open times), tokens[s].{o,h,l,c,turn24} on it
  * @param T1      1m grid (open times) covering the test window, tokens[s].m = {o,h,l,c} on it
  */
-export function simulate1m({ T15, T1, tokens, cfg = DEFAULT_CONFIG, minTurnoverUniverse = 10_000, minTurnoverEntry = 0, maxRank = 50, spread = 0.0005 }) {
+export function simulate1m({ T15, T1, tokens, cfg = DEFAULT_CONFIG, minTurnoverUniverse = 10_000, minTurnoverEntry = 0, maxRank = 50, spread = 0.0005, maxOpen = cfg.maxOpen || 0 }) {
   const t0 = T15[0];
   const syms = Object.keys(tokens).filter((s) => tokens[s].m);
   const open = [];
   const closed = [];
   const cooldown = {};
   const levelsLog = [];
-  const skipped = { chase: 0, wall: 0, liquidity: 0, cooldown: 0 };
+  const skipped = { chase: 0, wall: 0, liquidity: 0, cooldown: 0, slots: 0 };
   let prevPts = null;
 
   // Index of the 15m bar whose close time is <= ts (i.e. last bar closed at ts).
@@ -96,14 +96,15 @@ export function simulate1m({ T15, T1, tokens, cfg = DEFAULT_CONFIG, minTurnoverU
     const ranks = Object.fromEntries(top.map((t) => [t.symbol, t.rank]));
 
     // 4) entries at the 1m close
-    for (const s of detectCrossings(prevPts, pts, levels.entry, Infinity)) {
+    for (const s of detectCrossings(prevPts, pts, levels.entry, Infinity).sort((a, b) => (ranks[a] ?? 99) - (ranks[b] ?? 99))) {
       if (pts[s] > levels.entry + cfg.maxChasePts) { skipped.chase++; continue; }
       if (open.some((p) => p.symbol === s)) continue;
       if ((ranks[s] ?? 99) > maxRank) continue;
+      if (maxOpen > 0 && open.length >= maxOpen) { skipped.slots++; continue; }
       if (now - (cooldown[s] || 0) < cfg.cooldownMs) { skipped.cooldown++; continue; }
       if (!(live[s].turn >= minTurnoverEntry)) { skipped.liquidity++; continue; }
       const last = live[s].p;
-      const r = openPosition({ symbol: s, ask: last * (1 + spread), last, curvePts: pts[s], levels, now, rank: ranks[s] }, cfg);
+      const r = openPosition({ symbol: s, ask: last * (1 + spread), last, curvePts: pts[s], levels, now, rank: ranks[s], atr: tokens[s].atr4 ? tokens[s].atr4[fIdx - 1] : undefined }, cfg);
       if (r.skip) { skipped.wall++; continue; }
       open.push({ ...r.position, turnover24h: live[s].turn });
     }
