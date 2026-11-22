@@ -47,6 +47,9 @@ export const EXITS = {
   'SL 2ATR · TP 2R · 3J': { k: 2, m: 2, maxH: 72 },
   'SL 1ATR · TP 3R · 3J': { k: 1, m: 3, maxH: 72 },
   'SL 2ATR · sans TP · 7J': { k: 2, m: null, maxH: 168 },
+  // Let profits run: no target, the stop follows the highest high (trail × ATR below it).
+  'SL 2ATR · trailing 3ATR · 30J': { k: 2, m: null, maxH: 720, trail: 3 },
+  'SL 2ATR · trailing 2ATR · 14J': { k: 2, m: null, maxH: 336, trail: 2 },
 };
 
 async function main() {
@@ -106,7 +109,7 @@ async function main() {
           if ((busyUntil[key][x.symbol] || 0) > t) continue;
           const stop = e.close - ex.k * e.atr;
           const target = ex.m == null ? null : e.close + ex.m * (e.close - stop);
-          const r = simulateR(data[x.symbol].b1, e.k, { entry: e.close, stop, target, maxH: ex.maxH });
+          const r = simulateR(data[x.symbol].b1, e.k, { entry: e.close, stop, target, maxH: ex.maxH, trail: ex.trail ? ex.trail * e.atr : null });
           if (!r) continue;
           trades[key].push({ ...r, t, symbol: x.symbol });
           busyUntil[key][x.symbol] = r.exitT;

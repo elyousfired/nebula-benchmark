@@ -12,8 +12,11 @@ export { atrAt } from '../src/core/squeeze.js';
  * Returns { R, ret, outcome: 'TP'|'SL'|'TIME', exitT } net of fees, or null
  * when there are not enough future candles.
  */
-export function simulateR(b1, k, { entry, stop, target, maxH }) {
-  const risk = (entry - stop) / entry;
+export function simulateR(b1, k, { entry, stop: stop0, target, maxH, trail = null }) {
+  // trail: optional price distance; the stop rises to (highest high so far - trail).
+  let stop = stop0;
+  let hi = entry;
+  const risk = (entry - stop0) / entry;
   if (!(risk > 0)) return null;
   const end = b1.t[k] + HOUR + maxH * HOUR;
   if (b1.t[b1.t.length - 1] + HOUR < end) return null;
@@ -25,6 +28,7 @@ export function simulateR(b1, k, { entry, stop, target, maxH }) {
   for (; i < b1.t.length && b1.t[i] < end; i++) {
     if (b1.l[i] <= stop) return done(stop, 'SL', i);
     if (target != null && b1.h[i] >= target) return done(target, 'TP', i);
+    if (trail != null) { hi = Math.max(hi, b1.h[i]); stop = Math.max(stop, hi - trail); }
   }
   return done(b1.c[i - 1], 'TIME', i - 1);
 }
