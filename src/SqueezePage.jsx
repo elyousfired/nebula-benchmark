@@ -3,7 +3,7 @@ import { classify, sortRows, pickTop } from './core/squeeze.js';
 import { fetchTickers } from './lib/bybit.js';
 import { Header } from './components/Panels.jsx';
 import { SqueezeChart } from './components/SqueezeChart.jsx';
-import { fmtPct, fmtPrice, fmtTime } from './lib/format.js';
+import { fmtPct, fmtPrice, fmtTime, pctClass } from './lib/format.js';
 
 const API_EVERY = 5 * 60_000;
 const TICKER_EVERY = 10_000;
@@ -27,6 +27,8 @@ export default function SqueezePage({ scan, top50, onBack, signalSymbols = [] })
 
   const ready = scan.status === 'ready' && !scan.scanning;
   const ranks = useMemo(() => Object.fromEntries(top50.map((t) => [t.symbol, t.rank])), [top50]);
+  // Same 4h change as the main page's "4h" column (live, from the shared scan).
+  const h4 = useMemo(() => Object.fromEntries(top50.map((t) => [t.symbol, t.perf?.h4])), [top50]);
   const key = useMemo(() => (ready ? top50.map((t) => t.symbol).sort().join(',') : ''), [ready, top50]);
 
   useEffect(() => {
@@ -141,7 +143,7 @@ export default function SqueezePage({ scan, top50, onBack, signalSymbols = [] })
         ) : (
           <div className="table-wrap">
             <table className="sq-table">
-              <thead><tr><th>Rank</th><th>Token</th><th>État</th><th>Prix</th><th>Plafond 14J</th><th>Plancher</th><th>Dist.</th><th>Rng14</th><th>Quiet %</th><th>Vol 24h/7J</th></tr></thead>
+              <thead><tr><th>Rank</th><th>Token</th><th>État</th><th>Prix</th><th>4H</th><th>Plafond 14J</th><th>Plancher</th><th>Dist.</th><th>Rng14</th><th>Quiet %</th><th>Vol 24h/7J</th></tr></thead>
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.symbol} className={sel === r.symbol ? 'on' : ''} onClick={() => setSel(sel === r.symbol ? null : r.symbol)}>
@@ -149,6 +151,7 @@ export default function SqueezePage({ scan, top50, onBack, signalSymbols = [] })
                     <td><b>{r.symbol.replace('USDT', '')}</b></td>
                     <td><span className={`sq-st ${r.status}${bear && r.status === 'BREAKOUT' ? ' off' : ''}`}>{r.status}</span></td>
                     <td>{fmtPrice(r.price)}</td>
+                    <td className={pctClass(h4[r.symbol])}>{fmtPct(h4[r.symbol])}</td>
                     <td>{fmtPrice(r.high)}</td>
                     <td>{fmtPrice(r.low)}</td>
                     <td className={r.distPct > 0 ? 'pos' : ''}>{fmtPct(r.distPct * 100)}</td>
