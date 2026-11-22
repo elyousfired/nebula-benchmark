@@ -12,7 +12,8 @@
     "bot:report": "node bot/run.js --report",
     "backtest": "node backtest/run.js",
     "backtest:squeeze": "node backtest/squeeze.js",
-    "backtest:momentum": "node backtest/momentum.js"
+    "backtest:momentum": "node backtest/momentum.js",
+    "backtest:capitulation": "node backtest/capitulation.js"
   },
   "dependencies": {
     "react": "^19.0.0",
