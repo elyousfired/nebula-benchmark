@@ -85,8 +85,10 @@ async function main() {
       const j = idxAt(b4.t, t);
       let ss = 0;
       for (let i = k - 71; i <= k; i++) { const r = Math.log(b1.c[i] / b1.c[i - 1]); ss += r * r; }
-      const box = j >= 0 ? boxAt(b4, j) : null;
-      ctx[s] = { k, close: b1.c[k], atr: j >= 0 ? atrAt(b4, j) : null, quiet: j >= 0 ? quietPctAt(rng, j) : null, ceil: box ? box.high : Infinity, volat: Math.sqrt(ss / 72) };
+      // The 1H candle closing at t belongs to 4H candle j-1: compare it with the box
+      // built before that candle (same rule as the live page).
+      const box = j >= 1 ? boxAt(b4, j - 1) : null;
+      ctx[s] = { k, close: b1.c[k], atr: j >= 0 ? atrAt(b4, j) : null, quiet: j >= 1 ? quietPctAt(rng, j - 1) : null, ceil: box ? box.high : Infinity, volat: Math.sqrt(ss / 72) };
     }
     if (metrics.length < 150) continue;
     snaps++;
