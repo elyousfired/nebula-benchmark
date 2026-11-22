@@ -85,13 +85,49 @@ export function findBreakout(b4, rng, b1h, now) {
     const box = boxAt(b4, j);
     const quiet = quietPctAt(rng, j);
     if (box && quiet != null && quiet <= QUIET_MAX && b1h.c[k] > box.high) {
-      event = { t: t + HOUR, level: box.high, quiet };
+      event = { t: t + HOUR, level: box.high, quiet, close: b1h.c[k], k, j };
       break;
     }
   }
   if (!event) return null;
   const last = closed[closed.length - 1];
   return b1h.c[last] > event.level ? event : null;
+}
+
+/** ATR over the `n` 4H candles closed before index j. */
+export function atrAt(b4, j, n = 14) {
+  if (j < n + 1 || j > b4.t.length) return null;
+  let s = 0;
+  for (let i = j - n; i < j; i++) s += Math.max(b4.h[i] - b4.l[i], Math.abs(b4.h[i] - b4.c[i - 1]), Math.abs(b4.l[i] - b4.c[i - 1]));
+  return s / n;
+}
+
+// Trade plan validated in backtest/top50strat.js (Top 50, 1 year, in/out-of-sample).
+export const PLAN = { stopAtr: 1.5, targetR: 3, maxDays: 7 };
+
+/**
+ * Plan for a breakout: entry = close of the breakout 1H candle, stop = entry -
+ * 1.5 × ATR14(4H), target = entry + 3R, exit after 7 days. `state` says whether
+ * the stop or the target was already touched by the 1H candles after entry.
+ */
+export function breakoutPlan(b4, b1h, breakout) {
+  if (!breakout) return null;
+  const atr = atrAt(b4, breakout.j);
+  if (!(atr > 0)) return null;
+  const entry = breakout.close;
+  const stop = entry - PLAN.stopAtr * atr;
+  const target = entry + PLAN.targetR * (entry - stop);
+  let state = 'OPEN';
+  for (let i = breakout.k + 1; i < b1h.t.length; i++) {
+    if (b1h.l[i] <= stop) { state = 'SL'; break; }
+    if (b1h.h[i] >= target) { state = 'TP'; break; }
+  }
+  return { entry, stop, target, atr, riskPct: (entry - stop) / entry, expires: breakout.t + PLAN.maxDays * DAY, state };
+}
+
+/** Current result in R of a plan at `price`. */
+export function planR(plan, price) {
+  return plan && price > 0 ? (price - plan.entry) / (plan.entry - plan.stop) : null;
 }
 
 /** Status from the measured values (price can be a live price). */
@@ -126,7 +162,8 @@ export function analyzeSymbol({ symbol, b4, b1h, now, price }) {
     histDays: Math.round(histBars / 6),
     volRatio: volRatio(b1h),
     distPct: box.high > 0 ? px / box.high - 1 : null, // < 0 below the ceiling, > 0 above
-    breakout,
+    breakout: breakout ? { t: breakout.t, level: breakout.level, quiet: breakout.quiet, close: breakout.close } : null,
+    plan: breakoutPlan(b4, b1h, breakout),
     status: classify({ quiet, price: px, ceiling: box.high, breakout }),
   };
 }

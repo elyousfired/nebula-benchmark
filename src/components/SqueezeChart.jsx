@@ -22,7 +22,8 @@ export function SqueezeChart({ row, livePrice, compact = false }) {
 
   const n = bars.t.length;
   const price = livePrice || row.price;
-  let lo = Math.min(row.low, price, ...bars.l), hi = Math.max(row.high, price, ...bars.h);
+  const plan = row.plan;
+  let lo = Math.min(row.low, price, plan ? plan.stop : Infinity, ...bars.l), hi = Math.max(row.high, price, plan ? plan.target : 0, ...bars.h);
   const p = (hi - lo) * 0.05; lo -= p; hi += p;
   const x = (i) => ((i + 0.5) / n) * (W - R);
   const y = (v) => T + ((hi - v) / (hi - lo)) * (H - T - B);
@@ -43,6 +44,14 @@ export function SqueezeChart({ row, livePrice, compact = false }) {
         );
       })}
       <line x1={0} x2={W - R} y1={y(price)} y2={y(price)} className="sq-price" />
+      {plan && (
+        <>
+          <line x1={0} x2={W - R} y1={y(plan.stop)} y2={y(plan.stop)} className="sq-sl" />
+          <line x1={0} x2={W - R} y1={y(plan.target)} y2={y(plan.target)} className="sq-tp" />
+          <text x={W - R + 4} y={y(plan.stop) + 4} className="sq-lbl sl">SL {fmtPrice(plan.stop)}</text>
+          <text x={W - R + 4} y={y(plan.target) + 4} className="sq-lbl tp">TP {fmtPrice(plan.target)}</text>
+        </>
+      )}
       <text x={W - R + 4} y={y(row.high) + 4} className="sq-lbl ceil">{fmtPrice(row.high)}</text>
       <text x={W - R + 4} y={y(row.low) + 4} className="sq-lbl">{fmtPrice(row.low)}</text>
       <text x={W - R + 4} y={y(price) + 4} className="sq-lbl px">{fmtPrice(price)}</text>

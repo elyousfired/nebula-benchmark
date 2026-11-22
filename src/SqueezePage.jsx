@@ -1,5 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { classify, sortRows, pickTop } from './core/squeeze.js';
+import { classify, sortRows, pickTop, planR } from './core/squeeze.js';
+
+const fmtDate = (t) => new Date(t).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const PLAN_STATE = { OPEN: 'en cours', SL: 'stop touché', TP: 'objectif touché' };
+
+/** Stop / target / end of a breakout plan, with the live result in R. */
+function PlanLine({ plan, price }) {
+  if (!plan) return null;
+  const r = plan.state === 'OPEN' ? planR(plan, price) : plan.state === 'TP' ? 3 : -1;
+  return (
+    <span className="sq-plan">
+      Entrée <b>{fmtPrice(plan.entry)}</b> · SL <b className="neg">{fmtPrice(plan.stop)}</b> ({fmtPct(-plan.riskPct * 100, 1)}) · TP <b className="pos">{fmtPrice(plan.target)}</b> · fin {fmtDate(plan.expires)}
+      {' · '}<b className={r >= 0 ? 'pos' : 'neg'}>{r == null ? '—' : `${r >= 0 ? '+' : ''}${r.toFixed(2)}R`}</b> <span className="muted">({PLAN_STATE[plan.state]})</span>
+    </span>
+  );
+}
 import { fetchTickers } from './lib/bybit.js';
 import { Header } from './components/Panels.jsx';
 import { SqueezeChart } from './components/SqueezeChart.jsx';
@@ -70,7 +85,11 @@ export default function SqueezePage({ scan, top50, onBack, signalSymbols = [] })
       if (seen.has(k)) continue;
       seen.add(k);
       if (!first && perm === 'granted' && data.regime?.state !== 'bear') {
-        new Notification(`🚀 BREAKOUT ${r.symbol.replace('USDT', '')}`, { body: `Clôture 1H au-dessus de ${fmtPrice(r.breakout.level)} (quiet ${r.breakout.quiet.toFixed(0)}%)`, tag: k });
+        const p = r.plan;
+        new Notification(`🚀 BREAKOUT ${r.symbol.replace('USDT', '')}`, {
+          body: p ? `Entrée ${fmtPrice(p.entry)} · SL ${fmtPrice(p.stop)} · TP ${fmtPrice(p.target)} (3R, 7 jours)` : `Clôture 1H au-dessus de ${fmtPrice(r.breakout.level)} (quiet ${r.breakout.quiet.toFixed(0)}%)`,
+          tag: k,
+        });
       }
     }
     saveSeen(seen);
@@ -109,7 +128,8 @@ export default function SqueezePage({ scan, top50, onBack, signalSymbols = [] })
       {data && (
         <div className="card">
           <div className="card-title">🎯 SIGNAUX · BREAKOUT, COILED et alertes launchpad</div>
-          <div className="muted small">Uniquement les tokens en signal. Backtest 1 an : BREAKOUT + sortie à +10 % en 48 h ≈ +1,25 % par trade en moyenne (faible, pas garanti).</div>
+          <div className="muted small">Uniquement les tokens en signal. Plan BREAKOUT : entrée au close 1H de la cassure, stop = entrée − 1,5 × ATR14 (4H), objectif = +3R, sortie au bout de 7 jours.
+            Backtest Top 50 sur 1 an : +0,13R par trade sur la période de choix, +0,34R hors échantillon, 1 trimestre perdant sur 4, ~32 % de gagnants. Risque conseillé ≤ 1 % du capital par trade et 5 positions max. Pas garanti.</div>
           {picks.length === 0 && <div className="muted">Aucun signal pour le moment.</div>}
           <div className="sq-picks">
             {picks.map((r) => (
@@ -119,6 +139,7 @@ export default function SqueezePage({ scan, top50, onBack, signalSymbols = [] })
                   <span className={`sq-st ${r.status}${bear && r.status === 'BREAKOUT' ? ' off' : ''}`}>{r.status}</span>
                 </div>
                 <SqueezeChart row={r} livePrice={prices[r.symbol]} compact />
+                {r.plan && <div className="small"><PlanLine plan={r.plan} price={r.price} /></div>}
                 <div className="muted small">Dist. {fmtPct(r.distPct * 100)} · Quiet {r.quietPct == null ? '—' : r.quietPct.toFixed(0)} · Vol {r.volRatio == null ? '—' : `${r.volRatio.toFixed(2)}×`}</div>
               </div>
             ))}
@@ -129,7 +150,10 @@ export default function SqueezePage({ scan, top50, onBack, signalSymbols = [] })
       {selRow && (
         <div className="card">
           <div className="card-head">
-            <div className="card-title">{selRow.symbol.replace('USDT', '')} · 4H · box 14J</div>
+            <div>
+              <div className="card-title">{selRow.symbol.replace('USDT', '')} · 4H · box 14J</div>
+              {selRow.plan && <div className="small"><PlanLine plan={selRow.plan} price={selRow.price} /></div>}
+            </div>
             <button className="btn" onClick={() => setSel(null)}>✕</button>
           </div>
           <SqueezeChart row={selRow} livePrice={prices[selRow.symbol]} />

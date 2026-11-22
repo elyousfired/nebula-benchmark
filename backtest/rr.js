@@ -4,13 +4,7 @@ import { HOUR } from '../src/core/bars.js';
 
 const FEE = 0.001; // 0.1% per side
 
-/** ATR over the `n` 4H candles closed before index j. */
-export function atrAt(b4, j, n = 14) {
-  if (j < n + 1) return null;
-  let s = 0;
-  for (let i = j - n; i < j; i++) s += Math.max(b4.h[i] - b4.l[i], Math.abs(b4.h[i] - b4.c[i - 1]), Math.abs(b4.l[i] - b4.c[i - 1]));
-  return s / n;
-}
+export { atrAt } from '../src/core/squeeze.js';
 
 /**
  * Long from the close of 1H candle k. Stop / target checked on later 1H candles

@@ -170,3 +170,20 @@ test('pickTop: all signals first, then best scores up to 5', async () => {
   const many = Array.from({ length: 7 }, (_, i) => mkR(`S${i}`, 50, 'BREAKOUT'));
   assert.equal(pickTop(many).length, 7); // signals are never cut
 });
+
+test('breakoutPlan: entry = breakout close, SL = 1.5 ATR, TP = 3R, 7 days', async () => {
+  const { breakoutPlan, planR, atrAt } = await import('../src/core/squeeze.js');
+  const s = scenario([102, 102.5, 103]);
+  const a = analyzeSymbol({ symbol: 'Y', ...s });
+  assert.equal(a.status, 'BREAKOUT');
+  const p = a.plan;
+  assert.ok(p, 'plan expected');
+  assert.equal(p.entry, a.breakout.close);
+  assert.ok(Math.abs((p.entry - p.stop) - 1.5 * p.atr) < 1e-9);
+  assert.ok(Math.abs((p.target - p.entry) - 3 * (p.entry - p.stop)) < 1e-9);
+  assert.equal(p.expires, a.breakout.t + 7 * DAY);
+  assert.equal(p.state, 'OPEN');
+  assert.ok(Math.abs(planR(p, p.target) - 3) < 1e-9 && Math.abs(planR(p, p.stop) + 1) < 1e-9);
+  assert.equal(breakoutPlan(s.b4, s.b1h, null), null);
+  assert.ok(atrAt(s.b4, 100) > 0);
+});
