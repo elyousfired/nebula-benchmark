@@ -193,3 +193,5 @@ tbody tr { cursor: pointer; }
 .t5-grid .t5-perf b { font-size: 12px; }
 @media (max-width: 1400px) { .t5-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 900px) { .t5-grid { grid-template-columns: 1fr; } }
+
+.t5-section { display: flex; flex-direction: column; gap: 8px; }
