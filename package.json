@@ -10,7 +10,8 @@
     "test": "node --test test/*.test.js",
     "bot": "node bot/run.js",
     "bot:report": "node bot/run.js --report",
-    "backtest": "node backtest/run.js"
+    "backtest": "node backtest/run.js",
+    "backtest:squeeze": "node backtest/squeeze.js"
   },
   "dependencies": {
     "react": "^19.0.0",
