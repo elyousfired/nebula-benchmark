@@ -38,6 +38,9 @@
     "functions":  {
                       "api/squeeze.js":  {
                                              "maxDuration":  30
-                                         }
+                                         },
+                      "api/stable.js":  {
+                                            "maxDuration":  30
+                                        }
                   }
 }

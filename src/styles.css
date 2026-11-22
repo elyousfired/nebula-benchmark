@@ -204,3 +204,5 @@ tbody tr { cursor: pointer; }
 .st-spark polyline { fill: none; stroke: var(--cyan); stroke-width: 1.5; }
 .st-spark circle { fill: var(--cyan); }
 .st-top5 { stroke: var(--gold); stroke-dasharray: 2 2; opacity: .6; }
+
+.st-now { fill: var(--gold); }
