@@ -262,10 +262,10 @@ async function main() {
     // 15m grid must reach the candle before the forming one
     log(`Simulation minute par minute: ${T1.length} minutes × ${Object.keys(tokens).length} tokens…`);
     A = simulate1m({ T15: T, T1, tokens, cfg: CFG, maxRank: MAX_RANK });
-    B = simulate1m({ T15: T, T1, tokens, cfg: CFG, minTurnoverEntry: 1_000_000, maxRank: MAX_RANK });
+    B = process.argv.includes('--only-a') ? null : simulate1m({ T15: T, T1, tokens, cfg: CFG, minTurnoverEntry: 1_000_000, maxRank: MAX_RANK });
   } else {
     A = simulate({ T, tokens, startIdx, cfg: CFG, maxRank: MAX_RANK });
-    B = simulate({ T, tokens, startIdx, cfg: CFG, minTurnoverEntry: 1_000_000, maxRank: MAX_RANK });
+    B = process.argv.includes('--only-a') ? null : simulate({ T, tokens, startIdx, cfg: CFG, minTurnoverEntry: 1_000_000, maxRank: MAX_RANK });
   }
 
   // References
@@ -286,7 +286,7 @@ async function main() {
     '',
     report('A · Toutes les entrées (univers ≥ $10K / 24h)', A, ctx),
     '',
-    report('B · Entrées liquides seulement (≥ $1M / 24h)', B, ctx),
+    B ? report('B · Entrées liquides seulement (≥ $1M / 24h)', B, ctx) : '',
     '',
     'Limites: univers = paires listées aujourd\'hui (les tokens délistés manquent → biais favorable);',
     'détection toutes les 15 min (le bot réel: 10 s); ordre intra-bougie supposé (verte O→L→H→C, rouge O→H→L→C).',
@@ -295,7 +295,7 @@ async function main() {
   console.log(`\n${text}\n`);
   fs.writeFileSync(path.join(OUT, 'summary.txt'), `${text}\n`);
   writeTrades(path.join(OUT, 'trades-A-all.csv'), A);
-  writeTrades(path.join(OUT, 'trades-B-liquid.csv'), B);
+  if (B) writeTrades(path.join(OUT, 'trades-B-liquid.csv'), B);
   log(`Résultats écrits dans ${OUT}`);
 }
 
