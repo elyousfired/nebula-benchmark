@@ -1,6 +1,27 @@
 {
-  "regions": ["fra1"],
-  "headers": [
-    { "source": "/index.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
-  ]
+    "regions":  [
+                    "fra1"
+                ],
+    "headers":  [
+                    {
+                        "source":  "/index.html",
+                        "headers":  [
+                                        {
+                                            "key":  "Cache-Control",
+                                            "value":  "no-cache"
+                                        }
+                                    ]
+                    }
+                ],
+    "rewrites":  [
+                     {
+                         "destination":  "/index.html",
+                         "source":  "/squeeze"
+                     }
+                 ],
+    "functions":  {
+                      "api/squeeze.js":  {
+                                             "maxDuration":  30
+                                         }
+                  }
 }

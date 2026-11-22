@@ -102,6 +102,7 @@ export default function App() {
     <div className="app">
       <Header scan={scan} onRescan={scan.rescan} />
       <Controls opts={opts} set={set} />
+      <div className="controls"><a className="btn" href="/squeeze">📦 Squeeze Radar →</a></div>
 
       {tokens.length === 0 ? (
         <div className="card empty">
