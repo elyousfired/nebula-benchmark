@@ -127,13 +127,39 @@ async function main() {
     'Limites: univers = paires listées aujourd\'hui (les délistés manquent → biais favorable);',
     'pas le vrai Top 50 score 30D de chaque jour; entrée au close exact (pas de slippage).',
   ];
+  // Hold 7 days, no stop / no target.
+  const full = sigs.filter((s) => s.max7d != null);
+  const q = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(p * s.length))] : null; };
+  const share = (a, fn) => `${Math.round((a.filter(fn).length / a.length) * 100)}%`;
+  const mx = full.map((s) => s.max7d); const mn = full.map((s) => s.min7d); const r7 = full.map((s) => s.r7d);
+  lines.push(
+    '',
+    `HOLD 7 JOURS (sans stop, sans TP) — ${full.length} signaux avec 7J de recul`,
+    'Jour par jour (PnL au close, depuis l\'entrée):',
+    `  ${'jour'.padEnd(6)} ${'médiane'.padStart(8)} ${'moyenne'.padStart(8)} ${'> 0'.padStart(5)}`,
+    ...[0, 1, 2, 3, 4, 5, 6].map((d) => {
+      const a = full.map((s) => s.days[d]).filter((x) => x != null);
+      return `  J${d + 1}${' '.repeat(4)} ${pct(median(a)).padStart(8)} ${pct(mean(a)).padStart(8)} ${share(a, (x) => x > 0).padStart(5)}`;
+    }),
+    '',
+    `Plus haut atteint en 7J : médiane ${pct(median(mx))} · 25% des signaux ≥ ${pct(q(mx, 0.75))} · 10% ≥ ${pct(q(mx, 0.9))}`,
+    `  a touché +5% : ${share(full, (s) => s.max7d >= 0.05)} · +10% : ${share(full, (s) => s.max7d >= 0.10)} · +20% : ${share(full, (s) => s.max7d >= 0.20)} · plus haut médian atteint après ${median(full.map((s) => s.maxAtH))} h`,
+    `Plus bas atteint en 7J : médiane ${pct(median(mn))} · a touché -5% : ${share(full, (s) => s.min7d <= -0.05)} · -10% : ${share(full, (s) => s.min7d <= -0.10)} · -20% : ${share(full, (s) => s.min7d <= -0.20)}`,
+    `PnL final J7 : médiane ${pct(median(r7))} · moyenne ${pct(mean(r7))} · gagnants ${share(full, (s) => s.r7d > 0)}`,
+    '',
+    'Top 10 (plus haut en 7J):',
+    ...[...full].sort((a, b) => b.max7d - a.max7d).slice(0, 10).map((s) => `  ${new Date(s.t).toISOString().slice(0, 16)} ${s.symbol.padEnd(14)} max ${pct(s.max7d).padStart(8)}  min ${pct(s.min7d).padStart(7)}  J7 ${pct(s.r7d).padStart(8)}`),
+    'Pires 10 (PnL J7):',
+    ...[...full].sort((a, b) => a.r7d - b.r7d).slice(0, 10).map((s) => `  ${new Date(s.t).toISOString().slice(0, 16)} ${s.symbol.padEnd(14)} max ${pct(s.max7d).padStart(8)}  min ${pct(s.min7d).padStart(7)}  J7 ${pct(s.r7d).padStart(8)}`),
+  );
   const txt = lines.join('\n');
   console.log(`\n${txt}`);
   fs.writeFileSync(path.join(OUT, 'squeeze-summary.txt'), `${txt}\n`);
-  const csv = ['time,symbol,entry,high,low,rng14,quiet,volRatio,regime,r24h,r3d,r7d,bench7d,plan_outcome,plan_ret,plan_hours'];
+  const csv = ['time,symbol,entry,high,low,rng14,quiet,volRatio,regime,r24h,r3d,r7d,bench7d,plan_outcome,plan_ret,plan_hours,max7d,min7d,max_at_h,j1,j2,j3,j4,j5,j6,j7'];
   for (const s of sigs) {
     csv.push([new Date(s.t).toISOString(), s.symbol, s.entry, s.high, s.low, s.rng14.toFixed(4), s.quiet.toFixed(1), s.volRatio?.toFixed(2) ?? '', s.regime ?? '',
-      s.r24h?.toFixed(4) ?? '', s.r3d?.toFixed(4) ?? '', s.r7d?.toFixed(4) ?? '', s.bench7d?.toFixed(4) ?? '', s.plan?.outcome ?? '', s.plan?.ret.toFixed(4) ?? '', s.plan?.hours ?? ''].join(','));
+      s.r24h?.toFixed(4) ?? '', s.r3d?.toFixed(4) ?? '', s.r7d?.toFixed(4) ?? '', s.bench7d?.toFixed(4) ?? '', s.plan?.outcome ?? '', s.plan?.ret.toFixed(4) ?? '', s.plan?.hours ?? '',
+      s.max7d?.toFixed(4) ?? '', s.min7d?.toFixed(4) ?? '', s.maxAtH ?? '', ...s.days.map((x) => x?.toFixed(4) ?? '')].join(','));
   }
   fs.writeFileSync(path.join(OUT, 'squeeze-trades.csv'), `${csv.join('\n')}\n`);
   console.log(`\n${sigs.length} signaux → backtest/results/squeeze-trades.csv`);

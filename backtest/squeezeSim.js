@@ -43,6 +43,22 @@ export function simulateExit(b1h, k, { entry, high, low, maxDays = 14 }) {
   }
 }
 
+/**
+ * Hold 7 days, no stop / no target: best high (max gain) and worst low (max
+ * drawdown) reached after entry, and when the best high happened.
+ * null when 7 days of future data are not available yet.
+ */
+export function path7d(b1h, k, entry) {
+  const end = b1h.t[k] + HOUR + 7 * DAY;
+  if (b1h.t[b1h.t.length - 1] + HOUR < end) return { max7d: null, min7d: null, maxAtH: null };
+  let hi = -Infinity; let lo = Infinity; let at = 0;
+  for (let i = k + 1; i < b1h.t.length && b1h.t[i] < end; i++) {
+    if (b1h.h[i] > hi) { hi = b1h.h[i]; at = i - k; }
+    if (b1h.l[i] < lo) lo = b1h.l[i];
+  }
+  return { max7d: hi / entry - 1, min7d: lo / entry - 1, maxAtH: at };
+}
+
 /** 24h / 7d turnover ratio at 1H index k (closed candles only). */
 function volRatioAt(b1h, k) {
   if (k < 167) return null;
@@ -94,6 +110,8 @@ export function findSignals({ symbol, b4, b1h, btcDaily, from, cooldownDays = 3 
       symbol, t: closeT, entry, high: box.high, low: box.low, rng14: box.rng, quiet: q,
       volRatio: volRatioAt(b1h, k), regime: regimeAt(btcDaily, closeT),
       r24h: fwd(24), r3d: fwd(72), r7d: fwd(168),
+      days: [1, 2, 3, 4, 5, 6, 7].map((d) => fwd(24 * d)),
+      ...path7d(b1h, k, entry),
       plan: simulateExit(b1h, k, { entry, high: box.high, low: box.low }),
     });
   }

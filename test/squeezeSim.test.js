@@ -1,7 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { HOUR } from '../src/core/bars.js';
-import { simulateExit, idxAt } from '../backtest/squeezeSim.js';
+import { simulateExit, idxAt, path7d } from '../backtest/squeezeSim.js';
+
+test('path7d: max high / min low over the 7 days after entry', () => {
+  const rows = Array.from({ length: 24 * 7 + 5 }, () => [101, 99, 100]);
+  rows[10] = [120, 99, 110]; rows[50] = [101, 80, 90];
+  const b = { t: [], o: [], h: [], l: [], c: [], v: [], q: [] };
+  rows.forEach(([h, l, c], i) => { b.t.push(i * HOUR); b.o.push(c); b.h.push(h); b.l.push(l); b.c.push(c); b.v.push(1); b.q.push(1); });
+  const p = path7d(b, 0, 100);
+  assert.ok(Math.abs(p.max7d - 0.2) < 1e-12 && Math.abs(p.min7d + 0.2) < 1e-12);
+  assert.equal(p.maxAtH, 10);
+  assert.equal(path7d(b, 100, 100).max7d, null); // not 7 days of future yet
+});
 
 const mk = (rows) => {
   const b = { t: [], o: [], h: [], l: [], c: [], v: [], q: [] };
