@@ -179,3 +179,17 @@ tbody tr { cursor: pointer; }
 .t5-price { font-size: 16px; }
 .t5-perfs { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
 .t5-perf { display: flex; flex-direction: column; gap: 2px; background: var(--card2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+
+/* Top 5 side by side */
+.t5-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.t5-grid .card { padding: 10px; gap: 8px; }
+.t5-grid .card-head { flex-direction: column; gap: 6px; }
+.t5-grid .t5-title { gap: 6px; }
+.t5-grid .t5-rank { font-size: 15px; }
+.t5-grid .t5-sym { font-size: 16px; }
+.t5-grid .t5-price { font-size: 13px; }
+.t5-grid .t5-perfs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.t5-grid .t5-perf { padding: 4px 6px; }
+.t5-grid .t5-perf b { font-size: 12px; }
+@media (max-width: 1400px) { .t5-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .t5-grid { grid-template-columns: 1fr; } }

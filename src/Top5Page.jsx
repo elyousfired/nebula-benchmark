@@ -43,7 +43,7 @@ export default function Top5Page({ scan, top50, onBack }) {
 
       {!top5.length ? (
         <div className="card empty">{scan.status === 'error' ? `Impossible de charger Bybit : ${scan.error}` : 'Scan du Top 50…'}</div>
-      ) : top5.map((t) => {
+      ) : <div className="t5-grid">{top5.map((t) => {
         const b = boxes[t.symbol];
         const ph = PHASES[t.phase];
         // Chart always shows; the 14-day box is added once /api/squeeze answers.
@@ -74,13 +74,13 @@ export default function Top5Page({ scan, top50, onBack }) {
               <div className="t5-perf"><span className="muted small">vs plafond 14J</span><b className={dist > 0 ? 'pos' : ''}>{dist == null ? '—' : fmtPct(dist * 100)}</b></div>
               <div className="t5-perf"><span className="muted small">Vol 24h/7J</span><b className={b?.volRatio > 1.5 ? 'pos' : ''}>{b?.volRatio == null ? '—' : `${b.volRatio.toFixed(2)}×`}</b></div>
             </div>
-            <SqueezeChart row={row} livePrice={t.price} />
+            <SqueezeChart row={row} livePrice={t.price} compact />
             {b?.plan && (
               <div className="small">Plan BREAKOUT : entrée <b>{fmtPrice(b.plan.entry)}</b> · SL <b className="neg">{fmtPrice(b.plan.stop)}</b> · TP <b className="pos">{fmtPrice(b.plan.target)}</b> · fin {new Date(b.plan.expires).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
             )}
           </div>
         );
-      })}
+      })}</div>}
       <footer className="footer">Graphique : bougies 4H sur ~30 jours, box 14J (plafond en pointillés). Prix live Bybit · MAJ {fmtTime(Date.now())} · Ceci n'est pas un conseil financier.</footer>
     </div>
   );
