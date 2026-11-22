@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { bybitGet, fetchTickers, pool } from '../src/lib/bybit.js';
 import { parseKlines, HOUR, DAY } from '../src/core/bars.js';
 import { selectUniverse } from '../src/core/universe.js';
-import { findSignals, closeAt, EXIT_VARIANTS } from './squeezeSim.js';
+import { findSignals, closeAt, EXIT_VARIANTS, scoreSnapshots } from './squeezeSim.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CACHE = path.join(HERE, 'cache');
@@ -179,6 +179,36 @@ async function main() {
       ...byReg,
     );
   }
+  // Setup score (Top 5 of the page): daily snapshots, then forward returns.
+  const snaps = [];
+  for (const s of universe) if (data[s]) snaps.push(...scoreSnapshots({ symbol: s, ...data[s], from: testFrom }));
+  const byDay = new Map();
+  for (const x of snaps) { if (!byDay.has(x.t)) byDay.set(x.t, []); byDay.get(x.t).push(x); }
+  for (const day of byDay.values()) {
+    const m2 = median(day.map((x) => x.r2d).filter((v) => v != null));
+    for (const x of day) x.ex2d = x.r2d != null && m2 != null ? x.r2d - m2 : null;
+  }
+  const top5 = []; const bottom5 = [];
+  for (const day of byDay.values()) {
+    if (day.length < 30) continue;
+    const s = [...day].sort((a, b) => b.score - a.score);
+    top5.push(...s.slice(0, 5)); bottom5.push(...s.slice(-5));
+  }
+  const row = (a, label) => {
+    const v = (k) => a.map((x) => x[k]).filter((y) => y != null);
+    const tp = a.filter((x) => x.tp10);
+    return `  ${label.padEnd(16)} ${String(a.length).padStart(6)} ${pct(median(v('r1d'))).padStart(7)} ${pct(median(v('r2d'))).padStart(7)} ${pct(median(v('r7d'))).padStart(7)} ${pct(median(v('ex2d'))).padStart(9)} ${pct(median(v('max2d'))).padStart(9)} ${share(a, (x) => x.max2d >= 0.10).padStart(7)} ${pct(mean(tp.map((x) => x.tp10.ret)), 2).padStart(9)}`;
+  };
+  lines.push(
+    '',
+    `SCORE TOP 5 (photo chaque jour à 00:00 UTC, ${byDay.size} jours, ${snaps.length} photos)`,
+    `  ${'groupe'.padEnd(16)} ${'N'.padStart(6)} ${'méd 1J'.padStart(7)} ${'méd 2J'.padStart(7)} ${'méd 7J'.padStart(7)} ${'vs marché'.padStart(9)} ${'max 2J'.padStart(9)} ${'≥+10%'.padStart(7)} ${'+10%/48h'.padStart(9)}`,
+    row(top5, 'Top 5 du jour'),
+    row(bottom5, 'Pires 5 du jour'),
+    row(snaps, 'Tout le monde'),
+    ...[[80, 101], [60, 80], [40, 60], [20, 40], [0, 20]].map(([lo, hi]) => row(snaps.filter((x) => x.score >= lo && x.score < hi), `score ${lo}-${Math.min(hi, 100)}`)),
+    '  "max 2J" = plus haut atteint en 48h · "≥+10%" = a touché +10% en 48h · "+10%/48h" = sortie +10% sinon close 48h (net de frais).',
+  );
   const txt = lines.join('\n');
   console.log(`\n${txt}`);
   fs.writeFileSync(path.join(OUT, 'squeeze-summary.txt'), `${txt}\n`);

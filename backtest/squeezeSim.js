@@ -3,7 +3,7 @@
 // closed 1H candle closes above the ceiling while quiet_pct <= 10.
 
 import { HOUR, DAY } from '../src/core/bars.js';
-import { H4, rngSeries, boxAt, quietPctAt, QUIET_MAX, btcRegime } from '../src/core/squeeze.js';
+import { H4, rngSeries, boxAt, quietPctAt, QUIET_MAX, btcRegime, setupScore } from '../src/core/squeeze.js';
 
 const FEE = 0.001; // 0.1% per side (Bybit spot taker)
 /** [target, hours] exits tested: take profit at +target, else close after `hours`. */
@@ -74,6 +74,34 @@ export function exitTargetOrTime(b1h, k, entry, { target = 0.10, hours = 48 } = 
     if (b1h.h[i] >= tp) return { outcome: 'TP', ret: (tp * (1 - FEE)) / (entry * (1 + FEE)) - 1, hours: i - k, t: b1h.t[i] + HOUR };
   }
   return { outcome: 'TIME', ret: (b1h.c[i - 1] * (1 - FEE)) / (entry * (1 + FEE)) - 1, hours: i - 1 - k, t: b1h.t[i - 1] + HOUR };
+}
+
+/**
+ * Daily snapshots (00:00 UTC) of the live Top 5 setup score for one symbol,
+ * using only data known at that moment, plus what happened next.
+ */
+export function scoreSnapshots({ symbol, b4, b1h, from }) {
+  const rng = rngSeries(b4);
+  const out = [];
+  const lastT = b1h.t[b1h.t.length - 1] + HOUR;
+  for (let t = Math.ceil(from / DAY) * DAY; t + 2 * DAY <= lastT; t += DAY) {
+    const k = idxAt(b1h.t, t - HOUR); // last 1H closed at t
+    const j = idxAt(b4.t, t); // 4H candle open at t (excluded from its box)
+    if (k < 167 || j < 0 || b1h.t[k] + HOUR !== t) continue;
+    const box = boxAt(b4, j);
+    const quietPct = quietPctAt(rng, j);
+    if (!box || quietPct == null) continue;
+    const price = b1h.c[k];
+    const r = { quietPct, distPct: price / box.high - 1, volRatio: volRatioAt(b1h, k), status: 'NORMAL' };
+    const fwd = (h) => (t + h * HOUR <= lastT ? closeAt(b1h, t + h * HOUR) / price - 1 : null);
+    let max2 = -Infinity;
+    for (let i = k + 1; i < b1h.t.length && b1h.t[i] < t + 2 * DAY; i++) max2 = Math.max(max2, b1h.h[i] / price - 1);
+    out.push({
+      symbol, t, ...r, score: setupScore(r), r1d: fwd(24), r2d: fwd(48), r7d: fwd(168), max2d: max2,
+      tp10: exitTargetOrTime(b1h, k, price, { target: 0.10, hours: 48 }),
+    });
+  }
+  return out;
 }
 
 /** 24h / 7d turnover ratio at 1H index k (closed candles only). */
