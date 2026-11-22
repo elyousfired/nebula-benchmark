@@ -15,8 +15,9 @@ import { colorOf, fmtPts } from './lib/format.js';
 import SqueezePage from './SqueezePage.jsx';
 import AgentPage from './AgentPage.jsx';
 import Top5Page from './Top5Page.jsx';
+import ComboPage from './ComboPage.jsx';
 
-const ROUTES = { '/squeeze': 'squeeze', '/agent': 'agent', '/top5': 'top5' };
+const ROUTES = { '/squeeze': 'squeeze', '/agent': 'agent', '/top5': 'top5', '/combo': 'combo' };
 const routeOf = () => ROUTES[window.location.pathname.replace(/\/$/, '')] || 'main';
 
 const OPTS_KEY = 'nebula_bench_v2_opts';
@@ -108,6 +109,7 @@ export default function App() {
   const lastEma = chart.ema.length ? chart.ema[chart.ema.length - 1].v : null;
   const hLabel = HORIZONS[opts.horizon].label;
 
+  if (route === 'combo') return <ComboPage scan={scan} top50={alertList} onBack={go('/')} />;
   if (route === 'top5') return <Top5Page scan={scan} top50={alertList} onBack={go('/')} />;
   if (route === 'agent') return <AgentPage onBack={go('/')} />;
   if (route === 'squeeze') return <SqueezePage scan={scan} top50={alertList} onBack={go('/')} signalSymbols={signals.history.filter((s) => s.status === 'ACTIVE').map((s) => s.symbol)} />;
@@ -116,7 +118,7 @@ export default function App() {
     <div className="app">
       <Header scan={scan} onRescan={scan.rescan} />
       <Controls opts={opts} set={set} />
-      <div className="controls"><a className="btn" href="/top5" onClick={go('/top5')}>🥇 Top 5 →</a><a className="btn" href="/squeeze" onClick={go('/squeeze')}>📦 Squeeze Radar →</a><a className="btn" href="/agent" onClick={go('/agent')}>🤖 Agent Top 50 →</a></div>
+      <div className="controls"><a className="btn" href="/top5" onClick={go('/top5')}>🥇 Top 5 →</a><a className="btn" href="/combo" onClick={go('/combo')}>🎯 Top 5 30J ∩ 24H →</a><a className="btn" href="/squeeze" onClick={go('/squeeze')}>📦 Squeeze Radar →</a><a className="btn" href="/agent" onClick={go('/agent')}>🤖 Agent Top 50 →</a></div>
 
       {tokens.length === 0 ? (
         <div className="card empty">

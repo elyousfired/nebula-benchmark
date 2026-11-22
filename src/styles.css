@@ -195,3 +195,5 @@ tbody tr { cursor: pointer; }
 @media (max-width: 900px) { .t5-grid { grid-template-columns: 1fr; } }
 
 .t5-section { display: flex; flex-direction: column; gap: 8px; }
+
+.t5-combo { display: flex; flex-direction: column; gap: 4px; }

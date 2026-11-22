@@ -13,7 +13,7 @@ const SECTIONS = [
 ];
 
 /** One token card: perfs, phase, score of its horizon, squeeze state and 4H chart. */
-function Card({ t, b, label, horizon }) {
+export function Card({ t, b, label, horizon }) {
   const ph = PHASES[t.phase];
   // Chart always shows; the 14-day box is added once /api/squeeze answers.
   const row = b ? { ...b, price: t.price } : { symbol: t.symbol, price: t.price };
