@@ -13,8 +13,10 @@ import { TokenTable } from './components/TokenTable.jsx';
 import { Header, Controls, SentimentBar, VolumeProfilePanel, QuantPanel, SignalsPanel, Toast } from './components/Panels.jsx';
 import { colorOf, fmtPts } from './lib/format.js';
 import SqueezePage from './SqueezePage.jsx';
+import AgentPage from './AgentPage.jsx';
 
-const routeOf = () => (window.location.pathname.replace(/\/$/, '') === '/squeeze' ? 'squeeze' : 'main');
+const ROUTES = { '/squeeze': 'squeeze', '/agent': 'agent' };
+const routeOf = () => ROUTES[window.location.pathname.replace(/\/$/, '')] || 'main';
 
 const OPTS_KEY = 'nebula_bench_v2_opts';
 const DEFAULT_OPTS = { universe: 'score', horizon: 'month', topN: 50, showBench: true, showLevels: true, showProfile: true };
@@ -105,13 +107,14 @@ export default function App() {
   const lastEma = chart.ema.length ? chart.ema[chart.ema.length - 1].v : null;
   const hLabel = HORIZONS[opts.horizon].label;
 
+  if (route === 'agent') return <AgentPage onBack={go('/')} />;
   if (route === 'squeeze') return <SqueezePage scan={scan} top50={alertList} onBack={go('/')} signalSymbols={signals.history.filter((s) => s.status === 'ACTIVE').map((s) => s.symbol)} />;
 
   return (
     <div className="app">
       <Header scan={scan} onRescan={scan.rescan} />
       <Controls opts={opts} set={set} />
-      <div className="controls"><a className="btn" href="/squeeze" onClick={go('/squeeze')}>📦 Squeeze Radar →</a></div>
+      <div className="controls"><a className="btn" href="/squeeze" onClick={go('/squeeze')}>📦 Squeeze Radar →</a><a className="btn" href="/agent" onClick={go('/agent')}>🤖 Agent Top 50 →</a></div>
 
       {tokens.length === 0 ? (
         <div className="card empty">

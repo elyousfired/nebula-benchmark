@@ -17,6 +17,10 @@
                      {
                          "destination":  "/index.html",
                          "source":  "/squeeze"
+                     },
+                     {
+                         "destination":  "/index.html",
+                         "source":  "/agent"
                      }
                  ],
     "functions":  {
