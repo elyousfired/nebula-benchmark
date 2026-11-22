@@ -78,7 +78,8 @@ export default function SqueezePage({ scan, top50, onBack, signalSymbols = [] })
 
   const selRow = rows.find((r) => r.symbol === sel);
   const sigKey = signalSymbols.join(',');
-  const picks = useMemo(() => pickTop(rows, { n: 5, signalSymbols: sigKey ? sigKey.split(',') : [] }), [rows, sigKey]);
+  // Signal tokens only: the setup score showed no edge in the backtest, so it no longer fills the section.
+  const picks = useMemo(() => pickTop(rows, { n: 0, signalSymbols: sigKey ? sigKey.split(',') : [] }), [rows, sigKey]);
   const reg = data?.regime;
   const bear = reg?.state === 'bear';
 
@@ -105,18 +106,17 @@ export default function SqueezePage({ scan, top50, onBack, signalSymbols = [] })
         {perm === 'granted' && <span className="chip">🔔 alertes ON</span>}
       </div>
 
-      {picks.length > 0 && (
+      {data && (
         <div className="card">
-          <div className="card-title">🎯 TOP 5 SETUPS · les plus proches d'une cassure</div>
-          <div className="muted small">Score = 50% compression (Quiet %) + 30% proximité du plafond + 20% volume 24h/7J. Tout token en signal (BREAKOUT, COILED ou alerte launchpad) est ajouté en plus.</div>
+          <div className="card-title">🎯 SIGNAUX · BREAKOUT, COILED et alertes launchpad</div>
+          <div className="muted small">Uniquement les tokens en signal. Backtest 1 an : BREAKOUT + sortie à +10 % en 48 h ≈ +1,25 % par trade en moyenne (faible, pas garanti).</div>
+          {picks.length === 0 && <div className="muted">Aucun signal pour le moment.</div>}
           <div className="sq-picks">
             {picks.map((r) => (
               <div key={r.symbol} className={`sq-pick ${r.reason}`} onClick={() => setSel(r.symbol)}>
                 <div className="sq-pick-head">
                   <b>#{r.rank} {r.symbol.replace('USDT', '')}</b>
                   <span className={`sq-st ${r.status}${bear && r.status === 'BREAKOUT' ? ' off' : ''}`}>{r.status}</span>
-                  {r.reason === 'signal' && <span className="chip gold">signal</span>}
-                  <span className="chip">score <b>{r.score}</b></span>
                 </div>
                 <SqueezeChart row={r} livePrice={prices[r.symbol]} compact />
                 <div className="muted small">Dist. {fmtPct(r.distPct * 100)} · Quiet {r.quietPct == null ? '—' : r.quietPct.toFixed(0)} · Vol {r.volRatio == null ? '—' : `${r.volRatio.toFixed(2)}×`}</div>
