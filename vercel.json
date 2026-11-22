@@ -21,6 +21,10 @@
                      {
                          "destination":  "/index.html",
                          "source":  "/agent"
+                     },
+                     {
+                         "destination":  "/index.html",
+                         "source":  "/top5"
                      }
                  ],
     "functions":  {

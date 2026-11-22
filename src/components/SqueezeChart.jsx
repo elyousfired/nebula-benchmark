@@ -23,7 +23,9 @@ export function SqueezeChart({ row, livePrice, compact = false }) {
   const n = bars.t.length;
   const price = livePrice || row.price;
   const plan = row.plan;
-  let lo = Math.min(row.low, price, plan ? plan.stop : Infinity, ...bars.l), hi = Math.max(row.high, price, plan ? plan.target : 0, ...bars.h);
+  const hasBox = row.high > 0 && row.low > 0; // box drawn only when known
+  let lo = Math.min(hasBox ? row.low : Infinity, price || Infinity, plan ? plan.stop : Infinity, ...bars.l);
+  let hi = Math.max(hasBox ? row.high : 0, price || 0, plan ? plan.target : 0, ...bars.h);
   const p = (hi - lo) * 0.05; lo -= p; hi += p;
   const x = (i) => ((i + 0.5) / n) * (W - R);
   const y = (v) => T + ((hi - v) / (hi - lo)) * (H - T - B);
@@ -32,8 +34,8 @@ export function SqueezeChart({ row, livePrice, compact = false }) {
   const bx = bi < 0 ? 0 : x(bi) - cw;
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="sq-chart">
-      <rect x={bx} y={y(row.high)} width={W - R - bx} height={y(row.low) - y(row.high)} className="sq-box" />
-      <line x1={bx} x2={W - R} y1={y(row.high)} y2={y(row.high)} className="sq-ceil" />
+      {hasBox && <rect x={bx} y={y(row.high)} width={W - R - bx} height={y(row.low) - y(row.high)} className="sq-box" />}
+      {hasBox && <line x1={bx} x2={W - R} y1={y(row.high)} y2={y(row.high)} className="sq-ceil" />}
       {bars.t.map((t, i) => {
         const top = y(Math.max(bars.o[i], bars.c[i])), bot = y(Math.min(bars.o[i], bars.c[i]));
         return (
@@ -52,8 +54,8 @@ export function SqueezeChart({ row, livePrice, compact = false }) {
           <text x={W - R + 4} y={y(plan.target) + 4} className="sq-lbl tp">TP {fmtPrice(plan.target)}</text>
         </>
       )}
-      <text x={W - R + 4} y={y(row.high) + 4} className="sq-lbl ceil">{fmtPrice(row.high)}</text>
-      <text x={W - R + 4} y={y(row.low) + 4} className="sq-lbl">{fmtPrice(row.low)}</text>
+      {hasBox && <text x={W - R + 4} y={y(row.high) + 4} className="sq-lbl ceil">{fmtPrice(row.high)}</text>}
+      {hasBox && <text x={W - R + 4} y={y(row.low) + 4} className="sq-lbl">{fmtPrice(row.low)}</text>}
       <text x={W - R + 4} y={y(price) + 4} className="sq-lbl px">{fmtPrice(price)}</text>
     </svg>
   );
