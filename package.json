@@ -13,7 +13,8 @@
     "backtest": "node backtest/run.js",
     "backtest:squeeze": "node backtest/squeeze.js",
     "backtest:momentum": "node backtest/momentum.js",
-    "backtest:capitulation": "node backtest/capitulation.js"
+    "backtest:capitulation": "node backtest/capitulation.js",
+    "backtest:top50": "node backtest/top50study.js"
   },
   "dependencies": {
     "react": "^19.0.0",
