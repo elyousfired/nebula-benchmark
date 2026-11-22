@@ -97,8 +97,22 @@ export default function SqueezePage({ scan, top50, onBack, signalSymbols = [] })
 
   const selRow = rows.find((r) => r.symbol === sel);
   const sigKey = signalSymbols.join(',');
-  // Signal tokens only: the setup score showed no edge in the backtest, so it no longer fills the section.
+  // Two groups: squeeze signals (backtested, with a plan) and launchpad alerts (not tested).
   const picks = useMemo(() => pickTop(rows, { n: 0, signalSymbols: sigKey ? sigKey.split(',') : [] }), [rows, sigKey]);
+  const squeezePicks = picks.filter((r) => r.status === 'BREAKOUT' || r.status === 'COILED');
+  const launchPicks = picks.filter((r) => r.status !== 'BREAKOUT' && r.status !== 'COILED');
+  const card = (r, launch) => (
+    <div key={r.symbol} className={`sq-pick ${launch ? 'launch' : 'signal'}`} onClick={() => setSel(r.symbol)}>
+      <div className="sq-pick-head">
+        <b>#{r.rank} {r.symbol.replace('USDT', '')}</b>
+        <span className={`sq-st ${r.status}${bear && r.status === 'BREAKOUT' ? ' off' : ''}`}>{r.status}</span>
+        {launch && <span className="chip">🔔 launchpad</span>}
+      </div>
+      <SqueezeChart row={r} livePrice={prices[r.symbol]} compact />
+      {r.plan && <div className="small"><PlanLine plan={r.plan} price={r.price} /></div>}
+      <div className="muted small">Dist. {fmtPct(r.distPct * 100)} · Quiet {r.quietPct == null ? '—' : r.quietPct.toFixed(0)} · Vol {r.volRatio == null ? '—' : `${r.volRatio.toFixed(2)}×`}</div>
+    </div>
+  );
   const reg = data?.regime;
   const bear = reg?.state === 'bear';
 
@@ -127,23 +141,19 @@ export default function SqueezePage({ scan, top50, onBack, signalSymbols = [] })
 
       {data && (
         <div className="card">
-          <div className="card-title">🎯 SIGNAUX · BREAKOUT, COILED et alertes launchpad</div>
-          <div className="muted small">Uniquement les tokens en signal. Plan BREAKOUT : entrée au close 1H de la cassure, stop = entrée − 1,5 × ATR14 (4H), objectif = +3R, sortie au bout de 7 jours.
+          <div className="card-title">🎯 SIGNAUX SQUEEZE · BREAKOUT et COILED</div>
+          <div className="muted small">Plan BREAKOUT : entrée au close 1H de la cassure, stop = entrée − 1,5 × ATR14 (4H), objectif = +3R, sortie au bout de 7 jours.
             Backtest Top 50 sur 1 an : +0,13R par trade sur la période de choix, +0,34R hors échantillon, 1 trimestre perdant sur 4, ~32 % de gagnants. Risque conseillé ≤ 1 % du capital par trade et 5 positions max. Pas garanti.</div>
-          {picks.length === 0 && <div className="muted">Aucun signal pour le moment.</div>}
-          <div className="sq-picks">
-            {picks.map((r) => (
-              <div key={r.symbol} className={`sq-pick ${r.reason}`} onClick={() => setSel(r.symbol)}>
-                <div className="sq-pick-head">
-                  <b>#{r.rank} {r.symbol.replace('USDT', '')}</b>
-                  <span className={`sq-st ${r.status}${bear && r.status === 'BREAKOUT' ? ' off' : ''}`}>{r.status}</span>
-                </div>
-                <SqueezeChart row={r} livePrice={prices[r.symbol]} compact />
-                {r.plan && <div className="small"><PlanLine plan={r.plan} price={r.price} /></div>}
-                <div className="muted small">Dist. {fmtPct(r.distPct * 100)} · Quiet {r.quietPct == null ? '—' : r.quietPct.toFixed(0)} · Vol {r.volRatio == null ? '—' : `${r.volRatio.toFixed(2)}×`}</div>
-              </div>
-            ))}
-          </div>
+          {squeezePicks.length === 0 && <div className="muted">Aucun BREAKOUT ni COILED pour le moment.</div>}
+          <div className="sq-picks">{squeezePicks.map((r) => card(r, false))}</div>
+        </div>
+      )}
+
+      {data && launchPicks.length > 0 && (
+        <div className="card">
+          <div className="card-title">🔔 ALERTES LAUNCHPAD ACTIVES · pas testé</div>
+          <div className="muted small">Alertes en cours de la page principale (ligne launchpad 24H). Elles n'ont pas été validées par un backtest : à titre d'information seulement, sans plan d'entrée.</div>
+          <div className="sq-picks">{launchPicks.map((r) => card(r, true))}</div>
         </div>
       )}
 

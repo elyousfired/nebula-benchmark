@@ -169,3 +169,5 @@ tbody tr { cursor: pointer; }
 .sq-tp { stroke: var(--green); stroke-dasharray: 5 3; }
 .sq-lbl.sl { fill: var(--red); }
 .sq-lbl.tp { fill: var(--green); }
+
+.sq-pick.launch { border-color: var(--line); opacity: .85; }
