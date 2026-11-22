@@ -7,7 +7,7 @@ import { H4, rngSeries, boxAt, quietPctAt, QUIET_MAX, btcRegime } from '../src/c
 
 const FEE = 0.001; // 0.1% per side (Bybit spot taker)
 /** [target, hours] exits tested: take profit at +target, else close after `hours`. */
-export const EXIT_VARIANTS = [[0.10, 48], [0.05, 24]];
+export const EXIT_VARIANTS = [[0.10, 48], [0.05, 24], [0.10, 72]];
 
 /** Last index with t[i] <= ts (binary search), or -1. */
 export function idxAt(t, ts) {
