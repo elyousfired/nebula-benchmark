@@ -6,6 +6,8 @@ import { HOUR, DAY } from '../src/core/bars.js';
 import { H4, rngSeries, boxAt, quietPctAt, QUIET_MAX, btcRegime } from '../src/core/squeeze.js';
 
 const FEE = 0.001; // 0.1% per side (Bybit spot taker)
+/** [target, hours] exits tested: take profit at +target, else close after `hours`. */
+export const EXIT_VARIANTS = [[0.10, 48], [0.05, 24]];
 
 /** Last index with t[i] <= ts (binary search), or -1. */
 export function idxAt(t, ts) {
@@ -127,7 +129,7 @@ export function findSignals({ symbol, b4, b1h, btcDaily, from, cooldownDays = 3 
       r24h: fwd(24), r3d: fwd(72), r7d: fwd(168),
       days: [1, 2, 3, 4, 5, 6, 7].map((d) => fwd(24 * d)),
       ...path7d(b1h, k, entry),
-      tp10: exitTargetOrTime(b1h, k, entry, { target: 0.10, hours: 48 }),
+      exits: Object.fromEntries(EXIT_VARIANTS.map(([target, hours]) => [`${target}/${hours}`, exitTargetOrTime(b1h, k, entry, { target, hours })])),
       plan: simulateExit(b1h, k, { entry, high: box.high, low: box.low }),
     });
   }

@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { bybitGet, fetchTickers, pool } from '../src/lib/bybit.js';
 import { parseKlines, HOUR, DAY } from '../src/core/bars.js';
 import { selectUniverse } from '../src/core/universe.js';
-import { findSignals, closeAt } from './squeezeSim.js';
+import { findSignals, closeAt, EXIT_VARIANTS } from './squeezeSim.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CACHE = path.join(HERE, 'cache');
@@ -152,29 +152,33 @@ async function main() {
     'Pires 10 (PnL J7):',
     ...[...full].sort((a, b) => a.r7d - b.r7d).slice(0, 10).map((s) => `  ${new Date(s.t).toISOString().slice(0, 16)} ${s.symbol.padEnd(14)} max ${pct(s.max7d).padStart(8)}  min ${pct(s.min7d).padStart(7)}  J7 ${pct(s.r7d).padStart(8)}`),
   );
-  // Exit: +10% target within 48h, else close at 48h. No stop.
-  const tp = sigs.filter((s) => s.tp10);
-  const rets = tp.map((s) => s.tp10.ret);
-  let eq = 1; let peak = 1; let dd = 0;
-  for (const s of [...tp].sort((a, b) => a.tp10.t - b.tp10.t)) { eq *= 1 + 0.1 * s.tp10.ret; peak = Math.max(peak, eq); dd = Math.min(dd, eq / peak - 1); }
-  const lost = tp.filter((s) => s.tp10.outcome === 'TIME' && s.tp10.ret < 0).map((s) => s.tp10.ret);
-  const quarters = [0, 1, 2, 3].map((qi) => {
-    const a = tp.slice(Math.floor((tp.length * qi) / 4), Math.floor((tp.length * (qi + 1)) / 4));
-    return `  T${qi + 1} ${new Date(a[0].t).toISOString().slice(0, 7)}  n ${String(a.length).padStart(3)}  TP ${share(a, (s) => s.tp10.outcome === 'TP').padStart(4)}  moy ${pct(mean(a.map((s) => s.tp10.ret)), 2).padStart(7)}  méd ${pct(median(a.map((s) => s.tp10.ret)), 2).padStart(7)}`;
-  });
-  const byReg = ['bull', 'chop', 'bear'].map((r) => {
-    const a = tp.filter((s) => s.regime === r);
-    return a.length ? `  BTC ${r.padEnd(5)} n ${String(a.length).padStart(3)}  TP ${share(a, (s) => s.tp10.outcome === 'TP').padStart(4)}  moy ${pct(mean(a.map((s) => s.tp10.ret)), 2).padStart(7)}` : '';
-  }).filter(Boolean);
-  lines.push(
-    '',
-    `SORTIE +10% MAX EN 2 JOURS (sinon close à 48h, sans stop) — ${tp.length} signaux`,
-    `  TP touché : ${share(tp, (s) => s.tp10.outcome === 'TP')} · moyenne ${pct(mean(rets), 2)} · médiane ${pct(median(rets), 2)} · gagnants ${share(tp, (s) => s.tp10.ret > 0)}`,
-    `  sorties à 48h perdantes : ${lost.length} · perte moyenne ${pct(mean(lost), 1)} · pire ${pct(Math.min(...lost), 1)}`,
-    `  équité 10% du capital par trade : ${pct(eq - 1, 0)} · max drawdown ${pct(dd, 1)}`,
-    ...quarters,
-    ...byReg,
-  );
+  // Exits: +target within N hours, else close at N hours. No stop.
+  for (const [target, hours] of EXIT_VARIANTS) {
+    const key = `${target}/${hours}`;
+    const tp = sigs.filter((s) => s.exits[key]);
+    const ex = (s) => s.exits[key];
+    const rets = tp.map((s) => ex(s).ret);
+    let eq = 1; let peak = 1; let dd = 0;
+    for (const s of [...tp].sort((a, b) => ex(a).t - ex(b).t)) { eq *= 1 + 0.1 * ex(s).ret; peak = Math.max(peak, eq); dd = Math.min(dd, eq / peak - 1); }
+    const lost = tp.filter((s) => ex(s).outcome === 'TIME' && ex(s).ret < 0).map((s) => ex(s).ret);
+    const quarters = [0, 1, 2, 3].map((qi) => {
+      const a = tp.slice(Math.floor((tp.length * qi) / 4), Math.floor((tp.length * (qi + 1)) / 4));
+      return `  T${qi + 1} ${new Date(a[0].t).toISOString().slice(0, 7)}  n ${String(a.length).padStart(3)}  TP ${share(a, (s) => ex(s).outcome === 'TP').padStart(4)}  moy ${pct(mean(a.map((s) => ex(s).ret)), 2).padStart(7)}  méd ${pct(median(a.map((s) => ex(s).ret)), 2).padStart(7)}`;
+    });
+    const byReg = ['bull', 'chop', 'bear'].map((r) => {
+      const a = tp.filter((s) => s.regime === r);
+      return a.length ? `  BTC ${r.padEnd(5)} n ${String(a.length).padStart(3)}  TP ${share(a, (s) => ex(s).outcome === 'TP').padStart(4)}  moy ${pct(mean(a.map((s) => ex(s).ret)), 2).padStart(7)}` : '';
+    }).filter(Boolean);
+    lines.push(
+      '',
+      `SORTIE +${target * 100}% MAX EN ${hours}h (sinon close à ${hours}h, sans stop) — ${tp.length} signaux`,
+      `  TP touché : ${share(tp, (s) => ex(s).outcome === 'TP')} · moyenne ${pct(mean(rets), 2)} · médiane ${pct(median(rets), 2)} · gagnants ${share(tp, (s) => ex(s).ret > 0)}`,
+      `  sorties à ${hours}h perdantes : ${lost.length} · perte moyenne ${pct(mean(lost), 1)} · pire ${pct(Math.min(...lost), 1)}`,
+      `  équité 10% du capital par trade : ${pct(eq - 1, 0)} · max drawdown ${pct(dd, 1)}`,
+      ...quarters,
+      ...byReg,
+    );
+  }
   const txt = lines.join('\n');
   console.log(`\n${txt}`);
   fs.writeFileSync(path.join(OUT, 'squeeze-summary.txt'), `${txt}\n`);
