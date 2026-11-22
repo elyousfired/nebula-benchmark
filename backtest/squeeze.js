@@ -8,40 +8,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bybitGet, fetchTickers, pool } from '../src/lib/bybit.js';
-import { parseKlines, HOUR, DAY } from '../src/core/bars.js';
+import { fetchTickers, pool } from '../src/lib/bybit.js';
+import { HOUR, DAY } from '../src/core/bars.js';
+import { range, CACHE } from './data.js';
 import { selectUniverse } from '../src/core/universe.js';
 import { findSignals, closeAt, EXIT_VARIANTS, scoreSnapshots } from './squeezeSim.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const CACHE = path.join(HERE, 'cache');
 const OUT = path.join(HERE, 'results');
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? Number(process.argv[i + 1]) : def; };
 const UNIVERSE = arg('universe', 150);
 const DAYS = arg('days', 365);
 const WARMUP = 140; // 14d box + 120d history + margin
-const IV = { '240': 4 * HOUR, '60': HOUR, D: DAY };
-
-async function range(symbol, interval, fromMs) {
-  const file = path.join(CACHE, `${symbol}_${interval === '240' ? '4h' : interval === '60' ? '1h' : 'D'}.json`);
-  try {
-    const c = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (c.from <= fromMs && Date.now() - c.fetchedAt < 12 * HOUR) return parseKlines(c.rows);
-  } catch { /* no cache */ }
-  const rows = [];
-  let end = Date.now();
-  while (end > fromMs) {
-    const r = await bybitGet('kline', { category: 'spot', symbol, interval, limit: '1000', end: String(end) });
-    const list = r.list || [];
-    if (!list.length) break;
-    rows.push(...list);
-    const oldest = Number(list[list.length - 1][0]);
-    if (list.length < 1000) break;
-    end = oldest - IV[interval];
-  }
-  fs.writeFileSync(file, JSON.stringify({ from: fromMs, fetchedAt: Date.now(), rows }));
-  return parseKlines(rows);
-}
 
 const pct = (x, d = 1) => (x == null ? '—' : `${x >= 0 ? '+' : ''}${(x * 100).toFixed(d)}%`);
 const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
