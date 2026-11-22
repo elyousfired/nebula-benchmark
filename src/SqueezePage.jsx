@@ -52,7 +52,7 @@ export default function SqueezePage({ scan, top50, onBack }) {
   // Only symbols in the current Top 50, with its live rank.
   const rows = useMemo(() => sortRows((data?.rows || []).filter((r) => ranks[r.symbol]).map((r) => {
     const price = prices[r.symbol] > 0 ? prices[r.symbol] : r.price;
-    return { ...r, rank: ranks[r.symbol], price, distPct: r.high / price - 1, status: classify({ quiet: r.quietPct, price, ceiling: r.high, breakout: r.breakout }) };
+    return { ...r, rank: ranks[r.symbol], price, distPct: price / r.high - 1, status: classify({ quiet: r.quietPct, price, ceiling: r.high, breakout: r.breakout }) };
   })), [data, prices, ranks]);
   const missing = top50.filter((t) => !rows.some((r) => r.symbol === t.symbol)).map((t) => t.symbol.replace('USDT', ''));
 
@@ -67,7 +67,7 @@ export default function SqueezePage({ scan, top50, onBack }) {
       const k = `${r.symbol}:${r.breakout.t}`;
       if (seen.has(k)) continue;
       seen.add(k);
-      if (!first && perm === 'granted') {
+      if (!first && perm === 'granted' && data.regime?.state !== 'bear') {
         new Notification(`🚀 BREAKOUT ${r.symbol.replace('USDT', '')}`, { body: `Clôture 1H au-dessus de ${fmtPrice(r.breakout.level)} (quiet ${r.breakout.quiet.toFixed(0)}%)`, tag: k });
       }
     }
@@ -76,6 +76,7 @@ export default function SqueezePage({ scan, top50, onBack }) {
 
   const selRow = rows.find((r) => r.symbol === sel);
   const reg = data?.regime;
+  const bear = reg?.state === 'bear';
 
   return (
     <div className="app">
@@ -87,6 +88,7 @@ export default function SqueezePage({ scan, top50, onBack }) {
         {reg ? (
           <>
             <span className={`pill ${REG[reg.state][0]}`}>● BTC {REG[reg.state][1]}</span>
+            {bear && <span className="sq-warn" dir="rtl">⛔ ما تدخلش: الستراتيجية ما كتخدمش فالسوق الهابط</span>}
             <span className="chip">Close <b>{fmtPrice(reg.close)}</b></span>
             <span className="chip">SMA50 D <b>{fmtPrice(reg.sma50)}</b></span>
             <span className="chip">Ret 20J <b className={reg.ret20 >= 0 ? 'pos' : 'neg'}>{fmtPct(reg.ret20 * 100)}</b></span>
@@ -122,13 +124,13 @@ export default function SqueezePage({ scan, top50, onBack }) {
                   <tr key={r.symbol} className={sel === r.symbol ? 'on' : ''} onClick={() => setSel(sel === r.symbol ? null : r.symbol)}>
                     <td className="muted">#{r.rank}</td>
                     <td><b>{r.symbol.replace('USDT', '')}</b></td>
-                    <td><span className={`sq-st ${r.status}`}>{r.status}</span></td>
+                    <td><span className={`sq-st ${r.status}${bear && r.status === 'BREAKOUT' ? ' off' : ''}`}>{r.status}</span></td>
                     <td>{fmtPrice(r.price)}</td>
                     <td>{fmtPrice(r.high)}</td>
                     <td>{fmtPrice(r.low)}</td>
-                    <td className={r.distPct <= 0 ? 'pos' : ''}>{fmtPct(r.distPct * 100)}</td>
+                    <td className={r.distPct > 0 ? 'pos' : ''}>{fmtPct(r.distPct * 100)}</td>
                     <td>{(r.rng14 * 100).toFixed(1)}%</td>
-                    <td>{r.quietPct == null ? '—' : r.quietPct.toFixed(0)}</td>
+                    <td className={r.quietPct == null ? '' : r.quietPct <= 10 ? 'pos' : r.quietPct <= 25 ? 'gold' : ''}>{r.quietPct == null ? '—' : r.quietPct.toFixed(0)}</td>
                     <td className={r.volRatio > 1.5 ? 'pos' : ''}>{r.volRatio == null ? '—' : `${r.volRatio.toFixed(2)}×`}</td>
                   </tr>
                 ))}

@@ -34,7 +34,8 @@ export function fmtPrice(p) {
   if (p >= 1000) return p.toLocaleString('en-US', { maximumFractionDigits: 1 });
   if (p >= 1) return p.toFixed(4);
   if (p >= 0.01) return p.toFixed(5);
-  return p.toPrecision(4);
+  // Plain decimals for tiny prices (no e-notation): 4 significant digits.
+  return p.toFixed(Math.min(20, Math.ceil(-Math.log10(p)) + 3));
 }
 
 export function fmtTime(ts) {

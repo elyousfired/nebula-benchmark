@@ -144,3 +144,10 @@ test('btcRegime: SMA50 + 20-day return ±5%', () => {
   assert.equal(btcRegime(flat).state, 'chop');
   assert.equal(btcRegime(mk([[0, 0, 1]], DAY)), null);
 });
+
+test('distPct = price / ceiling - 1 (negative below, positive above)', () => {
+  const a = analyzeSymbol({ symbol: 'X', ...scenario([100.5, 100.5, 100.5]) });
+  assert.ok(a.distPct < 0 && Math.abs(a.distPct - (100.5 / 101 - 1)) < 1e-9);
+  const b = analyzeSymbol({ symbol: 'Y', ...scenario([102, 102.5, 103]) });
+  assert.ok(b.distPct > 0);
+});

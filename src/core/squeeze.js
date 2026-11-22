@@ -125,7 +125,7 @@ export function analyzeSymbol({ symbol, b4, b1h, now, price }) {
     quietPct: quiet,
     histDays: Math.round(histBars / 6),
     volRatio: volRatio(b1h),
-    distPct: px > 0 ? box.high / px - 1 : null,
+    distPct: box.high > 0 ? px / box.high - 1 : null, // < 0 below the ceiling, > 0 above
     breakout,
     status: classify({ quiet, price: px, ceiling: box.high, breakout }),
   };

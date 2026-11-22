@@ -239,3 +239,11 @@ test('end-to-end on mock data: metrics are finite and curves end at table perf',
   const c = tokenCurve({ bars15 }, 'day', now);
   assert.ok(Math.abs(c[c.length - 1].v - m.perf.d1) < 0.01);
 });
+
+test('fmtPrice: tiny prices as plain decimals', async () => {
+  const { fmtPrice } = await import('../src/lib/format.js');
+  assert.equal(fmtPrice(0.00001234), '0.00001234');
+  assert.equal(fmtPrice(0.0000001234), '0.0000001234');
+  assert.equal(fmtPrice(0.005678), '0.005678');
+  assert.ok(!/e/.test(fmtPrice(1.5e-9)));
+});
