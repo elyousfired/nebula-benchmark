@@ -79,6 +79,45 @@ export default function StablePage({ scan, onBack }) {
       </div>
 
       <div className="card">
+        <div className="card-title">🎯 SIGNAL · token stable + cassure du plus haut 20 j + boîte 20 j étroite (&lt; 40 %)</div>
+        <div className="muted small">Entrée au close journalier de la cassure · stop = entrée − 2 ATR14 (jour) · objectif = +2R · sortie au bout de 10 jours. Backtest 2,5 ans : +0,19R par trade (période de choix), +0,21R hors échantillon, ~49 % de gagnants, environ 5 signaux par mois, 1 trimestre perdant. Pas garanti.</div>
+        {!hist ? <div className="muted">…</div> : (
+          <>
+            {hist.signals?.length ? (
+              <div className="table-wrap">
+                <table className="sq-table">
+                  <thead><tr><th>Token</th><th>Cassure le</th><th>Entrée</th><th>Stop</th><th>Objectif</th><th>Fin</th><th>Prix</th><th>R</th><th>État</th></tr></thead>
+                  <tbody>
+                    {hist.signals.map((g) => {
+                      const px = tok[g.symbol]?.price;
+                      const r = g.state === 'TP' ? 2 : g.state === 'SL' ? -1 : px ? (px - g.entry) / (g.entry - g.stop) : null;
+                      const over = g.state === 'OPEN' && Date.now() > g.expires;
+                      return (
+                        <tr key={`${g.symbol}${g.day}`}>
+                          <td><b>{g.symbol.replace('USDT', '')}</b></td>
+                          <td className="muted">{day(g.day)}</td>
+                          <td>{fmtPrice(g.entry)}</td>
+                          <td className="neg">{fmtPrice(g.stop)}</td>
+                          <td className="pos">{fmtPrice(g.target)}</td>
+                          <td className="muted">{day(g.expires)}</td>
+                          <td>{px ? fmtPrice(px) : '—'}</td>
+                          <td className={r == null ? '' : r >= 0 ? 'pos' : 'neg'}><b>{r == null ? '—' : `${r >= 0 ? '+' : ''}${r.toFixed(2)}R`}</b></td>
+                          <td>{g.state === 'TP' ? '✅ objectif touché' : g.state === 'SL' ? '❌ stop touché' : over ? '⏱ échéance (sortir)' : '🟢 en cours'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : <div className="muted">Aucun signal sur les 10 derniers jours.</div>}
+            <div className="small"><b>À surveiller</b> (stable, boîte étroite, à moins de 3 % du plus haut 20 j) : {hist.watch?.length
+              ? hist.watch.map((w) => `${w.symbol.replace('USDT', '')} (cassure au-dessus de ${fmtPrice(w.hi20)}, à ${(w.dist * 100).toFixed(1)} %)`).join(' · ')
+              : 'aucun'}</div>
+          </>
+        )}
+      </div>
+
+      <div className="card">
         <div className="card-head">
           <div className="card-title">Présence dans le Top 50 lent</div>
           <div className="seg">{FILTERS.map((f) => <button key={f.key} className={filter === f.key ? 'on' : ''} onClick={() => setFilter(f.key)}>{f.label}</button>)}</div>

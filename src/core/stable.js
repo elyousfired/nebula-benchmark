@@ -45,6 +45,32 @@ export function dailySlowTops(daily, { days = WINDOW_DAYS, n = 50, now = Date.no
   return out;
 }
 
+// Backtested setup (backtest/stablestrat.js): stable token (>= 20/30 days in the
+// slow Top 50) + daily close above the previous 20-day high + 20-day box < 40%.
+// Plan: stop = entry - 2 ATR14 (daily), target = +2R, exit after 10 days.
+export const SETUP = { minDays: 20, box: 0.4, stopAtr: 2, targetR: 2, maxDays: 10, nearPct: 0.03 };
+
+/**
+ * Setup state of daily bars b ({t,h,l,c}) at index i (closed candle).
+ * Returns { breakout, near, width20, hi20, entry, stop, target } or null.
+ */
+export function stableSetup(b, i) {
+  if (i < 21) return null;
+  let hi20 = 0; let lo20 = Infinity;
+  for (let z = i - 20; z < i; z++) { hi20 = Math.max(hi20, b.h[z]); lo20 = Math.min(lo20, b.l[z]); }
+  let atr = 0;
+  for (let z = i - 13; z <= i; z++) atr += Math.max(b.h[z] - b.l[z], Math.abs(b.h[z] - b.c[z - 1]), Math.abs(b.l[z] - b.c[z - 1]));
+  atr /= 14;
+  const width20 = hi20 / lo20 - 1;
+  const entry = b.c[i];
+  const stop = entry - SETUP.stopAtr * atr;
+  return {
+    breakout: entry > hi20 && width20 < SETUP.box,
+    near: entry <= hi20 && width20 < SETUP.box && hi20 / entry - 1 < SETUP.nearPct,
+    width20, hi20, entry, stop, target: entry + SETUP.targetR * (entry - stop),
+  };
+}
+
 /**
  * Per-symbol summary over the window + the live ranking.
  * history: output of dailySlowTops; live: slowTop(...) of now (or []).

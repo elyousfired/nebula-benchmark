@@ -40,3 +40,15 @@ test('dailySlowTops + stabilityRows: who stayed the whole window', () => {
   assert.equal(by.FLAT, undefined); // never in the top 2
   assert.equal(rows[0].symbol, 'UP');
 });
+
+test('stableSetup: breakout above a narrow 20-day box, 2 ATR stop, 2R target', async () => {
+  const { stableSetup } = await import('../src/core/stable.js');
+  const b = { t: [], h: [], l: [], c: [] };
+  for (let i = 0; i < 30; i++) { b.t.push(i); b.h.push(101); b.l.push(99); b.c.push(100); }
+  b.h.push(106); b.l.push(100); b.c.push(105); // close above the 20-day high (101), box 2%
+  const x = stableSetup(b, 30);
+  assert.equal(x.breakout, true);
+  assert.ok(Math.abs((x.target - x.entry) - 2 * (x.entry - x.stop)) < 1e-9);
+  const n = stableSetup({ t: b.t, h: [...b.h.slice(0, 30), 101], l: [...b.l.slice(0, 30), 99], c: [...b.c.slice(0, 30), 100.5] }, 30);
+  assert.equal(n.breakout, false); assert.equal(n.near, true);
+});
