@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { classify, sortRows } from './core/squeeze.js';
+import { classify, sortRows, pickTop } from './core/squeeze.js';
 import { fetchTickers } from './lib/bybit.js';
 import { Header } from './components/Panels.jsx';
 import { SqueezeChart } from './components/SqueezeChart.jsx';
@@ -17,7 +17,7 @@ function saveSeen(s) { try { localStorage.setItem(SEEN_KEY, JSON.stringify([...s
  * `top50` is App's own topList(tokens, 'month', 50, 'score') from the shared
  * scan: the same tokens at the same moment as the main page, not a recompute.
  */
-export default function SqueezePage({ scan, top50, onBack }) {
+export default function SqueezePage({ scan, top50, onBack, signalSymbols = [] }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
   const [prices, setPrices] = useState({});
@@ -75,6 +75,8 @@ export default function SqueezePage({ scan, top50, onBack }) {
   }, [data, perm]);
 
   const selRow = rows.find((r) => r.symbol === sel);
+  const sigKey = signalSymbols.join(',');
+  const picks = useMemo(() => pickTop(rows, { n: 5, signalSymbols: sigKey ? sigKey.split(',') : [] }), [rows, sigKey]);
   const reg = data?.regime;
   const bear = reg?.state === 'bear';
 
@@ -100,6 +102,27 @@ export default function SqueezePage({ scan, top50, onBack }) {
         {perm === 'default' && <button className="btn primary" onClick={() => Notification.requestPermission().then(setPerm)}>🔔 Activer les alertes</button>}
         {perm === 'granted' && <span className="chip">🔔 alertes ON</span>}
       </div>
+
+      {picks.length > 0 && (
+        <div className="card">
+          <div className="card-title">🎯 TOP 5 SETUPS · les plus proches d'une cassure</div>
+          <div className="muted small">Score = 50% compression (Quiet %) + 30% proximité du plafond + 20% volume 24h/7J. Tout token en signal (BREAKOUT, COILED ou alerte launchpad) est ajouté en plus.</div>
+          <div className="sq-picks">
+            {picks.map((r) => (
+              <div key={r.symbol} className={`sq-pick ${r.reason}`} onClick={() => setSel(r.symbol)}>
+                <div className="sq-pick-head">
+                  <b>#{r.rank} {r.symbol.replace('USDT', '')}</b>
+                  <span className={`sq-st ${r.status}${bear && r.status === 'BREAKOUT' ? ' off' : ''}`}>{r.status}</span>
+                  {r.reason === 'signal' && <span className="chip gold">signal</span>}
+                  <span className="chip">score <b>{r.score}</b></span>
+                </div>
+                <SqueezeChart row={r} livePrice={prices[r.symbol]} compact />
+                <div className="muted small">Dist. {fmtPct(r.distPct * 100)} · Quiet {r.quietPct == null ? '—' : r.quietPct.toFixed(0)} · Vol {r.volRatio == null ? '—' : `${r.volRatio.toFixed(2)}×`}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {selRow && (
         <div className="card">

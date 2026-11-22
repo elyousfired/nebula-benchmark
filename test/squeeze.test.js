@@ -151,3 +151,22 @@ test('distPct = price / ceiling - 1 (negative below, positive above)', () => {
   const b = analyzeSymbol({ symbol: 'Y', ...scenario([102, 102.5, 103]) });
   assert.ok(b.distPct > 0);
 });
+
+test('setupScore: tight, near the ceiling and volume -> high', async () => {
+  const { setupScore } = await import('../src/core/squeeze.js');
+  assert.equal(setupScore({ quietPct: 0, distPct: 0, volRatio: 2, status: 'COILED' }), 100);
+  assert.equal(setupScore({ quietPct: 100, distPct: -0.2, volRatio: 0, status: 'NORMAL' }), 0);
+  assert.equal(setupScore({ quietPct: 50, distPct: -0.05, volRatio: 1, status: 'NORMAL' }), 50);
+  assert.equal(setupScore({ quietPct: null, distPct: null, volRatio: null, status: 'NORMAL' }), 0);
+});
+
+test('pickTop: all signals first, then best scores up to 5', async () => {
+  const { pickTop } = await import('../src/core/squeeze.js');
+  const mkR = (symbol, quietPct, status = 'NORMAL') => ({ symbol, quietPct, distPct: -0.05, volRatio: 1, status });
+  const rows = [mkR('A', 90), mkR('B', 20), mkR('C', 30), mkR('D', 40), mkR('E', 50), mkR('F', 60), mkR('G', 95, 'COILED'), mkR('H', 99)];
+  const p = pickTop(rows, { signalSymbols: ['H'] });
+  assert.deepEqual(p.map((r) => r.symbol), ['G', 'H', 'B', 'C', 'D']);
+  assert.deepEqual(p.map((r) => r.reason), ['signal', 'signal', 'top', 'top', 'top']);
+  const many = Array.from({ length: 7 }, (_, i) => mkR(`S${i}`, 50, 'BREAKOUT'));
+  assert.equal(pickTop(many).length, 7); // signals are never cut
+});

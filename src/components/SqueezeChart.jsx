@@ -3,10 +3,12 @@ import { fetchKlines } from '../lib/bybit.js';
 import { parseKlines } from '../core/bars.js';
 import { fmtPrice } from '../lib/format.js';
 
-const W = 900, H = 300, R = 70, T = 10, B = 10;
+const R = 70, T = 10, B = 10;
 
-/** 4H candles (~30 days) with the 14-day box. */
-export function SqueezeChart({ row, livePrice }) {
+/** 4H candles (~30 days) with the 14-day box. `compact` = small card version. */
+export function SqueezeChart({ row, livePrice, compact = false }) {
+  const W = compact ? 420 : 900;
+  const H = compact ? 200 : 300;
   const [bars, setBars] = useState(null);
   const [err, setErr] = useState(null);
   useEffect(() => {

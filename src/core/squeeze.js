@@ -153,3 +153,30 @@ export function btcRegime(daily) {
   else if (close < sma50 && ret20 < -0.05) state = 'bear';
   return { state, close, sma50, ret20 };
 }
+
+/**
+ * Setup score 0–100: how ready a token looks to break up out of its box.
+ * 50% tightness (low quiet_pct), 30% proximity to the ceiling (within 10%),
+ * 20% volume pickup (vol_ratio, capped at 2x). A breakout counts as at the ceiling.
+ */
+export function setupScore(r) {
+  const tight = 1 - Math.min(100, r.quietPct ?? 100) / 100;
+  const d = r.distPct;
+  const prox = r.status === 'BREAKOUT' || (d != null && d >= 0) ? 1 : d == null ? 0 : Math.max(0, 1 + d / 0.10);
+  const vol = Math.min(1, Math.max(0, (r.volRatio ?? 0) / 2));
+  return Math.round((0.5 * tight + 0.3 * prox + 0.2 * vol) * 100);
+}
+
+/**
+ * Charts to show: every token with a signal (BREAKOUT / COILED, or a symbol in
+ * `signalSymbols`), then the best setup scores until there are `n`.
+ * Each pick: { ...row, score, reason: 'signal' | 'top' }.
+ */
+export function pickTop(rows, { n = 5, signalSymbols = [] } = {}) {
+  const sig = new Set(signalSymbols);
+  const scored = rows.map((r) => ({ ...r, score: setupScore(r) })).sort((a, b) => b.score - a.score);
+  const isSig = (r) => r.status === 'BREAKOUT' || r.status === 'COILED' || sig.has(r.symbol);
+  const signals = scored.filter(isSig).map((r) => ({ ...r, reason: 'signal' }));
+  const rest = scored.filter((r) => !isSig(r)).slice(0, Math.max(0, n - signals.length)).map((r) => ({ ...r, reason: 'top' }));
+  return [...signals, ...rest];
+}

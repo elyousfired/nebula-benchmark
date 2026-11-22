@@ -105,7 +105,7 @@ export default function App() {
   const lastEma = chart.ema.length ? chart.ema[chart.ema.length - 1].v : null;
   const hLabel = HORIZONS[opts.horizon].label;
 
-  if (route === 'squeeze') return <SqueezePage scan={scan} top50={alertList} onBack={go('/')} />;
+  if (route === 'squeeze') return <SqueezePage scan={scan} top50={alertList} onBack={go('/')} signalSymbols={signals.history.filter((s) => s.status === 'ACTIVE').map((s) => s.symbol)} />;
 
   return (
     <div className="app">
