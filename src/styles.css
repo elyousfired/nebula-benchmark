@@ -197,3 +197,10 @@ tbody tr { cursor: pointer; }
 .t5-section { display: flex; flex-direction: column; gap: 8px; }
 
 .t5-combo { display: flex; flex-direction: column; gap: 4px; }
+
+/* Stable Top 50 */
+.st-bar { display: inline-block; width: 60px; height: 6px; background: #1a262e; border-radius: 3px; margin-right: 6px; vertical-align: middle; overflow: hidden; }
+.st-bar div { height: 100%; background: var(--green); }
+.st-spark polyline { fill: none; stroke: var(--cyan); stroke-width: 1.5; }
+.st-spark circle { fill: var(--cyan); }
+.st-top5 { stroke: var(--gold); stroke-dasharray: 2 2; opacity: .6; }

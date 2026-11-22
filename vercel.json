@@ -29,6 +29,10 @@
                      {
                          "destination":  "/index.html",
                          "source":  "/combo"
+                     },
+                     {
+                         "destination":  "/index.html",
+                         "source":  "/stable"
                      }
                  ],
     "functions":  {
