@@ -125,6 +125,7 @@ async function main() {
   console.log(txt);
   fs.mkdirSync(OUT, { recursive: true });
   fs.writeFileSync(path.join(OUT, 'stablestrat-summary.txt'), `${txt}\n`);
+  fs.writeFileSync(path.join(OUT, 'stablestrat-trades.json'), JSON.stringify(trades));
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
