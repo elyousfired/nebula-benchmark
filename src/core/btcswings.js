@@ -65,8 +65,29 @@ export function tokenSwings(b, swings) {
     if (!(p0 > 0) || !(p1 > 0) || b.t[0] > s.t0) return null;
     let hi = 0; let lo = Infinity;
     for (let i = 0; i < b.t.length; i++) if (b.t[i] > s.t0 && b.t[i] <= s.t1) { hi = Math.max(hi, b.h[i]); lo = Math.min(lo, b.l[i]); }
-    return { ret: p1 / p0 - 1, max: hi > 0 ? hi / p0 - 1 : null, min: lo < Infinity ? lo / p0 - 1 : null };
+    return { p0, ret: p1 / p0 - 1, max: hi > 0 ? hi / p0 - 1 : null, min: lo < Infinity ? lo / p0 - 1 : null };
   });
+}
+
+/**
+ * How a token follows BTC over the waves. waves: [{ kind: 'up'|'down' }],
+ * moves / btcMoves: tokenSwings output for the token and for BTC.
+ * fidelity = waves where the token moved in the wave's direction;
+ * upAmp / downAmp = token move / BTC move averaged over up / down waves
+ * (2 = twice BTC's move); asym = upAmp / downAmp (> 1: rises more than it falls).
+ */
+export function waveScores(waves, moves, btcMoves) {
+  let fidelity = 0; let n = 0; const up = []; const dn = [];
+  waves.forEach((w, k) => {
+    const m = moves[k]; const b = btcMoves[k];
+    if (!m || !b) return;
+    n++;
+    if (w.kind === 'up' ? m.ret > 0 : m.ret < 0) fidelity++;
+    if (b.ret !== 0) (w.kind === 'up' ? up : dn).push(m.ret / b.ret);
+  });
+  const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+  const upAmp = avg(up); const downAmp = avg(dn);
+  return { fidelity, waves: n, upAmp, downAmp, asym: upAmp != null && downAmp != null && downAmp > 0 ? upAmp / downAmp : null };
 }
 
 /** Daily log-return correlation and beta of token vs BTC over common days >= from. */

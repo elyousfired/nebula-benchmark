@@ -208,3 +208,14 @@ tbody tr { cursor: pointer; }
 .st-now { fill: var(--gold); }
 
 .t5-search { background: var(--card); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 6px 10px; font-family: inherit; }
+
+/* BTC waves */
+.wv-timeline { display: flex; gap: 4px; width: 100%; }
+.wv-seg { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card2); color: var(--text); cursor: pointer; font-family: inherit; font-size: 11px; text-align: left; }
+.wv-seg.up { border-color: #00ff8855; background: #00ff880d; }
+.wv-seg.down { border-color: #f43f5e55; background: #f43f5e0d; }
+.wv-seg.on { outline: 2px solid var(--gold); }
+.wv-up { fill: #00ff8812; }
+.wv-dn { fill: #f43f5e12; }
+.wv-btc { fill: none; stroke: #ffffffcc; stroke-width: 1.5; }
+.wv-tok { fill: none; stroke: var(--gold); stroke-width: 2; }

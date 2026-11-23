@@ -1,17 +1,18 @@
-// How every Bybit spot token moved during BTC's rallies. A rally runs from its
-// start day (the user's marked low) to the top of that wave; for each token we
-// give the best gain reached in that window (max high vs the price at the start)
-// and where it finished. Region fra1, cached 1 hour.
+// BTC waves (up / down, the user's dates) and how every Bybit spot token moved
+// in each: close-to-close move, best / worst point, start price (for live
+// moves), and scores of how it follows BTC. Region fra1, cached 1 hour.
 
 import { selectUniverse } from '../src/core/universe.js';
-import { tokenSwings, corrBeta } from '../src/core/btcswings.js';
+import { tokenSwings, corrBeta, waveScores } from '../src/core/btcswings.js';
 
 const BYBIT = 'https://api.bybit.com/v5/market';
 const DAY = 86_400_000;
-// BTC rallies, start day -> top of the wave (UTC). Edit here to change them.
-export const RALLIES = [
-  { name: 'Hausse 1', start: '2026-03-02', end: '2026-05-26' },
-  { name: 'Hausse 2', start: '2026-07-01', end: '2026-09-21' },
+// BTC waves (UTC). end null = wave in progress (up to the last closed day). Edit here to change them.
+export const WAVES = [
+  { name: 'Hausse 1', kind: 'up', start: '2026-03-02', end: '2026-05-26' },
+  { name: 'Baisse 1', kind: 'down', start: '2026-05-26', end: '2026-07-01' },
+  { name: 'Hausse 2', kind: 'up', start: '2026-07-01', end: '2026-09-21' },
+  { name: 'Baisse 2', kind: 'down', start: '2026-09-21', end: null },
 ];
 
 async function get(path, params) {
@@ -28,18 +29,19 @@ async function get(path, params) {
   throw err;
 }
 
-async function daily(symbol, limit) {
+async function daily(symbol, limit, now) {
   const list = (await get('kline', { category: 'spot', symbol, interval: 'D', limit: String(limit) })).list || [];
-  const rows = list.map((k) => [Number(k[0]), Number(k[2]), Number(k[3]), Number(k[4])]).filter((r) => r[3] > 0).sort((a, b) => a[0] - b[0]);
+  const rows = list.map((k) => [Number(k[0]), Number(k[2]), Number(k[3]), Number(k[4])]).filter((r) => r[3] > 0 && r[0] + DAY <= now).sort((a, b) => a[0] - b[0]);
   return { t: rows.map((r) => r[0]), h: rows.map((r) => r[1]), l: rows.map((r) => r[2]), c: rows.map((r) => r[3]) };
 }
 
 export async function buildFollowers(now = Date.now()) {
-  // Window: entry at the close of the day before the start (= open of the start day), through the end day.
-  const windows = RALLIES.map((r) => ({ ...r, t0: Date.parse(r.start) - DAY, t1: Date.parse(r.end) }));
-  const days = Math.ceil((now - windows[0].t0) / DAY) + 5;
-  const btc = await daily('BTCUSDT', days);
-  const btcMoves = tokenSwings(btc, windows);
+  const lastClosed = Math.floor(now / DAY) * DAY - DAY;
+  // Entry at the close of the day before the start (= open of the start day), through the end day.
+  const waves = WAVES.map((w) => ({ ...w, open: w.end == null, t0: Date.parse(w.start) - DAY, t1: w.end ? Date.parse(w.end) : lastClosed }));
+  const days = Math.ceil((now - waves[0].t0) / DAY) + 5;
+  const btc = await daily('BTCUSDT', days, now);
+  const btcMoves = tokenSwings(btc, waves);
   const tickers = (await get('tickers', { category: 'spot' })).list || [];
   const universe = selectUniverse(tickers, { limit: 500 }).map((t) => t.symbol);
   const tokens = [];
@@ -48,19 +50,14 @@ export async function buildFollowers(now = Date.now()) {
     while (next < universe.length) {
       const s = universe[next++];
       try {
-        const b = await daily(s, days);
-        const moves = tokenSwings(b, windows);
+        const b = await daily(s, days, now);
+        const moves = tokenSwings(b, waves);
         if (moves.every((m) => m == null)) continue;
-        const ok = moves.filter(Boolean);
-        tokens.push({
-          symbol: s, moves, ...corrBeta(b, btc, windows[0].t0),
-          beatsBtc: moves.every((m, k) => m != null && m.max > btcMoves[k].max),
-          avgMax: ok.reduce((a, m) => a + m.max, 0) / ok.length,
-        });
+        tokens.push({ symbol: s, moves, ...waveScores(waves, moves, btcMoves), ...corrBeta(b, btc, waves[0].t0) });
       } catch { /* skipped */ }
     }
   }));
-  return { generatedAt: now, rallies: windows, btc: btcMoves, universe: universe.length, tokens: tokens.sort((a, b) => b.avgMax - a.avgMax) };
+  return { generatedAt: now, waves, btc: btcMoves, universe: universe.length, tokens };
 }
 
 export default async function handler(req, res) {

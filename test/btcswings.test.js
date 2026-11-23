@@ -20,3 +20,15 @@ test('btcSwings + tokenSwings: up / down swings, ret, max, open swing', () => {
   const cb = corrBeta(bars([...path, ...path, ...path]), bars([...path, ...path, ...path]), 0);
   assert.ok(Math.abs(cb.corr - 1) < 1e-9 && Math.abs(cb.beta - 1) < 1e-9);
 });
+
+test('waveScores: fidelity and amplification vs BTC', async () => {
+  const { waveScores } = await import('../src/core/btcswings.js');
+  const waves = [{ kind: 'up' }, { kind: 'down' }, { kind: 'up' }, { kind: 'down' }];
+  const btc = [{ ret: 0.2 }, { ret: -0.2 }, { ret: 0.4 }, { ret: -0.2 }];
+  const tok = [{ ret: 0.4 }, { ret: -0.2 }, { ret: 0.8 }, { ret: 0.1 }];
+  const s = waveScores(waves, tok, btc);
+  assert.equal(s.fidelity, 3); assert.equal(s.waves, 4);
+  assert.ok(Math.abs(s.upAmp - 2) < 1e-9);
+  assert.ok(Math.abs(s.downAmp - 0.25) < 1e-9); // (1 + -0.5) / 2
+  assert.ok(Math.abs(s.asym - 8) < 1e-9);
+});
