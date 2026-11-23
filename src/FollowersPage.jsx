@@ -93,13 +93,14 @@ export default function FollowersPage({ scan, onBack }) {
   };
   const [simQ, setSimQ] = useState('');
   const [monthHl, setMonthHl] = useState(null);
+  const [monthH, setMonthH] = useState('month'); // 'month' (30 days) or 'd3' (zoom on the last 3 days)
   // Last 30 days of the simulation's tokens, same chart as the main page's Top 50 (4H, points since the start).
   const month = useMemo(() => {
     const list = simSyms.map((s) => scan.tokens.find((t) => t.symbol === s)).filter(Boolean);
     if (!list.length) return null;
-    const c = buildCurves(list, scan.liveSeries, 'month', Date.now());
+    const c = buildCurves(list, scan.liveSeries, monthH, Date.now());
     return { ...c, order: list.map((t) => t.symbol).filter((s) => c.curves[s]) };
-  }, [simSyms.join(','), scan.tokens, scan.liveSeries]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [simSyms.join(','), scan.tokens, scan.liveSeries, monthH]); // eslint-disable-line react-hooks/exhaustive-deps
   // Chips: selected first, then the best 20 candidates (or every match of the search).
   const simChips = useMemo(() => {
     if (!sim) return [];
@@ -196,6 +197,10 @@ export default function FollowersPage({ scan, onBack }) {
                 </div>
                 {month && (
                   <div className="vp-legend">
+                    <div className="seg">
+                      <button className={monthH === 'month' ? 'on' : ''} onClick={() => setMonthH('month')}>30 jours</button>
+                      <button className={monthH === 'd3' ? 'on' : ''} onClick={() => setMonthH('d3')}>3 derniers jours</button>
+                    </div>
                     <span className="chip">Benchmark <b>{fmtPts(month.bench.length ? month.bench[month.bench.length - 1].v : null)}</b></span>
                     <span className="chip gold">EMA20 bench <b>{fmtPts(month.ema.length ? month.ema[month.ema.length - 1].v : null)}</b></span>
                   </div>
@@ -203,7 +208,7 @@ export default function FollowersPage({ scan, onBack }) {
               </div>
               {!month ? <div className="muted small">{scan.tokens.length ? 'Aucun token sélectionné.' : 'Scan en cours…'}</div> : (
                 <>
-                  <PerfChart curves={month.curves} order={month.order} bench={month.bench} ema={month.ema} horizon="month" highlight={monthHl} onHighlight={setMonthHl} showBench />
+                  <PerfChart curves={month.curves} order={month.order} bench={month.bench} ema={month.ema} horizon={monthH} highlight={monthHl} onHighlight={setMonthHl} showBench />
                   <div className="legend">
                     {month.order.map((s) => (
                       <button key={s} className={`legend-item ${monthHl === s ? 'on' : ''}`} onClick={() => setMonthHl(monthHl === s ? null : s)}>
