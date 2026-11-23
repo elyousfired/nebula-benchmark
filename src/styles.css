@@ -219,3 +219,11 @@ tbody tr { cursor: pointer; }
 .wv-dn { fill: #f43f5e12; }
 .wv-btc { fill: none; stroke: #ffffffcc; stroke-width: 1.5; }
 .wv-tok { fill: none; stroke: var(--gold); stroke-width: 2; }
+
+/* Simulation */
+.sim-zone { fill: #ffffff08; stroke: #ffffff22; stroke-dasharray: 3 3; }
+.sim-grid { stroke: #ffffff12; }
+.sim-end { font-size: 12px; font-weight: 700; }
+.sim-controls label { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.sim-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.sim-chips .chip { cursor: pointer; background: var(--card2); font-family: inherit; }

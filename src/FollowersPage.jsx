@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Header } from './components/Panels.jsx';
 import { WaveChart } from './components/WaveChart.jsx';
+import { SimChart, SIM_COLORS } from './components/SimChart.jsx';
 
 // BTC waves (up / down, fixed dates) and how every Bybit spot token followed
 // them. Data: /api/followers (daily, 1 h cache); the wave in progress uses the
@@ -23,6 +24,9 @@ export default function FollowersPage({ scan, onBack }) {
   const [onlyFull, setOnlyFull] = useState(true);
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(null);
+  const [simSel, setSimSel] = useState(null); // symbols in the simulation (null = default)
+  const [simMove, setSimMove] = useState(null); // BTC move of the simulated rally (null = average of past rallies)
+  const [simDays, setSimDays] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -65,6 +69,21 @@ export default function FollowersPage({ scan, onBack }) {
 
   const w = view === 'all' ? null : data?.waves[view];
 
+  // Simulation: candidates = followed BTC on every wave, best asymmetry first.
+  const sim = useMemo(() => {
+    if (!data) return null;
+    const ups = data.waves.map((x, k) => ({ x, k })).filter(({ x }) => x.kind === 'up' && !x.open);
+    const avgMove = ups.reduce((a, { k }) => a + data.btc[k].ret, 0) / ups.length;
+    const avgDays = Math.round(ups.reduce((a, { x }) => a + (x.t1 - x.t0) / 86_400_000, 0) / ups.length);
+    const cands = data.tokens.filter((t) => t.fidelity === data.waves.length && t.asym != null).sort((a, b) => b.asym - a.asym).slice(0, 12);
+    return { avgMove, avgDays, cands };
+  }, [data]);
+  const simSyms = simSel ?? sim?.cands.slice(0, 4).map((t) => t.symbol) ?? [];
+  const toggleSim = (s) => {
+    const cur = simSyms;
+    setSimSel(cur.includes(s) ? cur.filter((x) => x !== s) : cur.length >= 6 ? cur : [...cur, s]);
+  };
+
   return (
     <div className="app">
       <Header scan={scan} onRescan={scan.rescan} />
@@ -90,6 +109,31 @@ export default function FollowersPage({ scan, onBack }) {
               <span className="muted small">Cliquez une vague pour voir tous les tokens pendant cette vague. Mouvement = du premier jour (ouverture) au dernier jour de la vague ; la vague en cours est calculée au prix live.</span>
             </div>
           </div>
+
+          {sim && (
+            <div className="card">
+              <div className="card-title">🔮 SIMULATION · prochaine hausse du BTC</div>
+              <div className="muted small">Traits pleins = vraies courbes (base 100 au début de la Hausse 1). Pointillés = simulation : le BTC monte selon la forme moyenne de ses 2 hausses passées, et chaque token bouge de son amplification moyenne (Ampl. ↑) × le mouvement du BTC. C'est une projection « si ça se répète comme avant », pas une prévision.</div>
+              <div className="row-gap sim-controls">
+                <label>Hausse du BTC <b>{Math.round((simMove ?? sim.avgMove) * 100)} %</b>
+                  <input type="range" min="5" max="150" step="5" value={Math.round((simMove ?? sim.avgMove) * 100)} onChange={(e) => setSimMove(Number(e.target.value) / 100)} /></label>
+                <label>Durée <b>{simDays ?? sim.avgDays} j</b>
+                  <input type="range" min="15" max="180" step="5" value={simDays ?? sim.avgDays} onChange={(e) => setSimDays(Number(e.target.value))} /></label>
+              </div>
+              <div className="sim-chips">
+                {sim.cands.map((t) => {
+                  const i = simSyms.indexOf(t.symbol);
+                  return (
+                    <button key={t.symbol} className={`chip ${i >= 0 ? 'on' : ''}`} style={i >= 0 ? { color: SIM_COLORS[i], borderColor: SIM_COLORS[i] } : null} onClick={() => toggleSim(t.symbol)}>
+                      {t.symbol.replace('USDT', '')} · ↑{t.upAmp.toFixed(1)}× ↓{t.downAmp.toFixed(1)}×
+                    </button>
+                  );
+                })}
+                <span className="muted small">(6 max · tokens qui ont suivi le BTC sur les {data.waves.length} vagues, meilleure asymétrie)</span>
+              </div>
+              <SimChart waves={data.waves} tokens={simSyms.map((s) => data.tokens.find((t) => t.symbol === s)).filter(Boolean)} btcMove={simMove ?? sim.avgMove} days={simDays ?? sim.avgDays} />
+            </div>
+          )}
 
           {sel && (
             <div className="card">
