@@ -5,6 +5,8 @@ import { parseKlines } from '../core/bars.js';
 const DAY = 86_400_000;
 const W = 960; const H = 340; const P = { l: 44, r: 90, t: 14, b: 22 };
 export const SIM_COLORS = ['#facc15', '#22d3ee', '#a855f7', '#fb923c', '#00ff88', '#f472b6'];
+/** Color of the i-th token: the 6 base colors, then distinct hues (golden angle). */
+export const simColor = (i) => (i < SIM_COLORS.length ? SIM_COLORS[i] : `hsl(${Math.round((i * 137.5) % 360)}, 75%, 62%)`);
 
 /**
  * BTC's average rally shape: each past up wave resampled on 0..1 time and
@@ -45,7 +47,7 @@ export function SimChart({ waves, tokens, btcMove, days }) {
     const now = btc.t[btc.t.length - 1];
     const hist = (b) => { if (!b) return null; const i0 = b.t.findIndex((t) => t >= t0); if (i0 < 0) return null; const base = b.c[i0]; return b.t.slice(i0).map((t, k) => [t, (b.c[i0 + k] / base) * 100]); };
     const proj = (h, amp) => { if (!h) return null; const [tl, vl] = h[h.length - 1]; return Array.from({ length: 41 }, (_, k) => { const x = k / 40; return [tl + x * days * DAY, vl * (1 + amp * btcMove * shape(x))]; }); };
-    const lines = [{ s: 'BTCUSDT', name: 'BTC', amp: 1, color: '#ffffffcc' }, ...tokens.map((t, i) => ({ s: t.symbol, name: t.symbol.replace('USDT', ''), amp: t.upAmp ?? 1, color: SIM_COLORS[i % SIM_COLORS.length] }))]
+    const lines = [{ s: 'BTCUSDT', name: 'BTC', amp: 1, color: '#ffffffcc' }, ...tokens.map((t, i) => ({ s: t.symbol, name: t.symbol.replace('USDT', ''), amp: t.upAmp ?? 1, color: simColor(i) }))]
       .map((l) => { const h = hist(bars[l.s]); return { ...l, h, p: proj(h, l.amp) }; }).filter((l) => l.h);
     return { lines, t0, now, tEnd: now + days * DAY };
   }, [bars, waves, tokens, btcMove, days]);

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Header } from './components/Panels.jsx';
 import { WaveChart } from './components/WaveChart.jsx';
-import { SimChart, SIM_COLORS } from './components/SimChart.jsx';
+import { SimChart, simColor } from './components/SimChart.jsx';
 
 // BTC waves (up / down, fixed dates) and how every Bybit spot token followed
 // them. Data: /api/followers (daily, 1 h cache); the wave in progress uses the
@@ -75,14 +75,23 @@ export default function FollowersPage({ scan, onBack }) {
     const ups = data.waves.map((x, k) => ({ x, k })).filter(({ x }) => x.kind === 'up' && !x.open);
     const avgMove = ups.reduce((a, { k }) => a + data.btc[k].ret, 0) / ups.length;
     const avgDays = Math.round(ups.reduce((a, { x }) => a + (x.t1 - x.t0) / 86_400_000, 0) / ups.length);
-    const cands = data.tokens.filter((t) => t.fidelity === data.waves.length && t.asym != null).sort((a, b) => b.asym - a.asym).slice(0, 12);
+    const cands = data.tokens.filter((t) => t.fidelity === data.waves.length && t.asym != null).sort((a, b) => b.asym - a.asym);
     return { avgMove, avgDays, cands };
   }, [data]);
   const simSyms = simSel ?? sim?.cands.slice(0, 4).map((t) => t.symbol) ?? [];
   const toggleSim = (s) => {
     const cur = simSyms;
-    setSimSel(cur.includes(s) ? cur.filter((x) => x !== s) : cur.length >= 6 ? cur : [...cur, s]);
+    setSimSel(cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]);
   };
+  const [simQ, setSimQ] = useState('');
+  // Chips: selected first, then the best 20 candidates (or every match of the search).
+  const simChips = useMemo(() => {
+    if (!sim) return [];
+    const needle = simQ.trim().toUpperCase();
+    const pool = needle ? sim.cands.filter((t) => t.symbol.includes(needle)) : sim.cands.slice(0, 20);
+    const chosen = simSyms.map((s) => sim.cands.find((t) => t.symbol === s)).filter(Boolean);
+    return [...chosen, ...pool.filter((t) => !simSyms.includes(t.symbol))];
+  }, [sim, simQ, simSyms.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="app">
@@ -121,15 +130,18 @@ export default function FollowersPage({ scan, onBack }) {
                   <input type="range" min="15" max="180" step="5" value={simDays ?? sim.avgDays} onChange={(e) => setSimDays(Number(e.target.value))} /></label>
               </div>
               <div className="sim-chips">
-                {sim.cands.map((t) => {
+                <input placeholder="Ajouter un token…" value={simQ} onChange={(e) => setSimQ(e.target.value)} className="t5-search" />
+                <button className="btn" onClick={() => setSimSel(sim.cands.slice(0, 10).map((t) => t.symbol))}>Top 10</button>
+                <button className="btn" onClick={() => setSimSel([])}>Vider</button>
+                {simChips.map((t) => {
                   const i = simSyms.indexOf(t.symbol);
                   return (
-                    <button key={t.symbol} className={`chip ${i >= 0 ? 'on' : ''}`} style={i >= 0 ? { color: SIM_COLORS[i], borderColor: SIM_COLORS[i] } : null} onClick={() => toggleSim(t.symbol)}>
+                    <button key={t.symbol} className={`chip ${i >= 0 ? 'on' : ''}`} style={i >= 0 ? { color: simColor(i), borderColor: simColor(i) } : null} onClick={() => toggleSim(t.symbol)}>
                       {t.symbol.replace('USDT', '')} · ↑{t.upAmp.toFixed(1)}× ↓{t.downAmp.toFixed(1)}×
                     </button>
                   );
                 })}
-                <span className="muted small">(6 max · tokens qui ont suivi le BTC sur les {data.waves.length} vagues, meilleure asymétrie)</span>
+                <span className="muted small">({simSyms.length} sélectionnés · {sim.cands.length} tokens ont suivi le BTC sur les {data.waves.length} vagues, classés par asymétrie)</span>
               </div>
               <SimChart waves={data.waves} tokens={simSyms.map((s) => data.tokens.find((t) => t.symbol === s)).filter(Boolean)} btcMove={simMove ?? sim.avgMove} days={simDays ?? sim.avgDays} />
             </div>
