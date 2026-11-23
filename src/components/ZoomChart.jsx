@@ -54,7 +54,7 @@ export function ZoomChart({ waves, tokens, btcMove, days, prices }) {
 
   // Only the real data and the simulation up to x1 set the vertical scale (tight zoom).
   // Scale on the real prices and the simulated value now; dashed lines going further are clipped.
-  const vals = lines.flatMap((l) => [...l.real.map((p) => p[1]), l.simNow]);
+  const vals = lines.flatMap((l) => l.real.map((p) => p[1]));
   let lo = Math.min(...vals); let hi = Math.max(...vals); const pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad;
   const x = (t) => P.l + ((t - x0) / (x1 - x0)) * (W - P.l - P.r);
   const y = (v) => P.t + ((hi - v) / (hi - lo)) * (H - P.t - P.b);
