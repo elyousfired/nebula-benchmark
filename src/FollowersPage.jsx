@@ -26,7 +26,8 @@ export function reliability(t, waves, btc) {
     hh: ups.length < 2 || hi(ups[ups.length - 1]) > hi(ups[ups.length - 2]),
     hl: downs.length < 2 || lo(downs[downs.length - 1]) > lo(downs[downs.length - 2]),
   };
-  return { ...c, ok: c.fid && c.beat && c.hh && c.hl };
+  // Beating BTC is shown but not required: a token that follows BTC in a rising staircase is kept.
+  return { ...c, ok: c.fid && c.hh && c.hl };
 }
 
 const SORTS = [
@@ -143,17 +144,18 @@ export default function FollowersPage({ scan, onBack }) {
           {sim && (
             <div className="card">
               <div className="card-title">✅ TOKENS FIABLES · {sim.reliable.length} sur {data.tokens.length}</div>
-              <div className="muted small">Fiable = a suivi le BTC sur les {data.waves.length} vagues ET a fait mieux que le BTC dans chaque hausse ET plus haut plus haut (sommet de la dernière hausse &gt; sommet de la précédente) ET plus bas plus haut (creux de la dernière baisse &gt; creux de la précédente).</div>
+              <div className="muted small">Fiable = a suivi le BTC sur les {data.waves.length} vagues ET plus haut plus haut (sommet de la dernière hausse &gt; sommet de la précédente) ET plus bas plus haut (creux de la dernière baisse &gt; creux de la précédente). « Bat BTC » = a fait mieux que le BTC dans chaque hausse (information, pas obligatoire).</div>
               <div className="table-wrap">
                 <table className="sq-table">
-                  <thead><tr><th>Token</th>{data.waves.map((x) => <th key={x.name}>{x.name}</th>)}<th>Ampl. ↑</th><th>Ampl. ↓</th><th>Asymétrie</th><th>Corr.</th></tr></thead>
+                  <thead><tr><th>Token</th>{data.waves.map((x) => <th key={x.name}>{x.name}</th>)}<th>Ampl. ↑</th><th>Ampl. ↓</th><th>Asymétrie</th><th>Corr.</th><th>Bat BTC</th></tr></thead>
                   <tbody>
                     {sim.reliable.map((t) => (
                       <tr key={t.symbol} className={sel === t.symbol ? 'on' : ''} onClick={() => setSel(t.symbol)}>
                         <td><b>{t.symbol.replace('USDT', '')}</b></td>
                         {data.waves.map((x, k) => <td key={x.name} className={cls(mv(t, k))}>{pc(mv(t, k))}</td>)}
                         <td className="pos">{xx(t.upAmp)}</td><td className={t.downAmp > 1 ? 'neg' : ''}>{xx(t.downAmp)}</td>
-                        <td className="pos"><b>{t.asym.toFixed(1)}</b></td><td>{t.corr?.toFixed(2)}</td>
+                        <td className={t.asym > 1 ? 'pos' : 'neg'}><b>{t.asym.toFixed(1)}</b></td><td>{t.corr?.toFixed(2)}</td>
+                        <td>{reliability(t, data.waves, data.btc).beat ? '✅' : '—'}</td>
                       </tr>
                     ))}
                   </tbody>
