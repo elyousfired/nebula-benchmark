@@ -32,3 +32,15 @@ test('waveScores: fidelity and amplification vs BTC', async () => {
   assert.ok(Math.abs(s.downAmp - 0.25) < 1e-9); // (1 + -0.5) / 2
   assert.ok(Math.abs(s.asym - 8) < 1e-9);
 });
+
+test('reliability: fidelity + higher high + higher low', async () => {
+  const { reliability } = await import('../src/core/btcswings.js');
+  const waves = [{ kind: 'up' }, { kind: 'down' }, { kind: 'up' }, { kind: 'down' }];
+  const btc = [{ ret: 0.1 }, { ret: -0.1 }, { ret: 0.1 }, { ret: -0.1 }];
+  const mv = (p0, ret, max, min) => ({ p0, ret, max, min });
+  const good = { fidelity: 4, moves: [mv(100, 0.5, 0.6, -0.1), mv(150, -0.2, 0.05, -0.3), mv(120, 0.6, 0.7, -0.05), mv(190, -0.1, 0.02, -0.2)] };
+  assert.equal(reliability(good, waves, btc).ok, true);
+  const lowerHigh = { ...good, moves: [good.moves[0], good.moves[1], mv(100, 0.3, 0.4, -0.05), good.moves[3]] };
+  assert.equal(reliability(lowerHigh, waves, btc).hh, false);
+  assert.equal(reliability({ ...good, fidelity: 3 }, waves, btc).ok, false);
+});

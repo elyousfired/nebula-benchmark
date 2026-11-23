@@ -6,6 +6,7 @@ import { ZoomChart } from './components/ZoomChart.jsx';
 import { PerfChart } from './components/PerfChart.jsx';
 import { buildCurves } from './core/curves.js';
 import { colorOf, fmtPts } from './lib/format.js';
+import { reliability } from './core/btcswings.js';
 
 // BTC waves (up / down, fixed dates) and how every Bybit spot token followed
 // them. Data: /api/followers (daily, 1 h cache); the wave in progress uses the
@@ -13,26 +14,7 @@ import { colorOf, fmtPts } from './lib/format.js';
 const pc = (x) => (x == null || !Number.isFinite(x) ? '—' : `${x >= 0 ? '+' : ''}${(x * 100).toFixed(0)}%`);
 const xx = (x) => (x == null || !Number.isFinite(x) ? '—' : `${x.toFixed(1)}×`);
 const cls = (x) => (x == null ? 'muted' : x > 0 ? 'pos' : x < 0 ? 'neg' : '');
-/**
- * Reliable follower: followed BTC on every wave, beat BTC in every up wave,
- * higher high (last up wave's peak > previous one's) and higher low (last
- * down wave's low > previous one's). Prices from each move's start price.
- */
-export function reliability(t, waves, btc) {
-  const ups = []; const downs = [];
-  waves.forEach((w, k) => (w.kind === 'up' ? ups : downs).push(k));
-  const m = t.moves;
-  if (ups.some((k) => !m[k]) || downs.some((k) => !m[k])) return { ok: false };
-  const hi = (k) => m[k].p0 * (1 + m[k].max); const lo = (k) => m[k].p0 * (1 + m[k].min);
-  const c = {
-    fid: t.fidelity === waves.length,
-    beat: ups.every((k) => m[k].ret > btc[k].ret),
-    hh: ups.length < 2 || hi(ups[ups.length - 1]) > hi(ups[ups.length - 2]),
-    hl: downs.length < 2 || lo(downs[downs.length - 1]) > lo(downs[downs.length - 2]),
-  };
-  // Beating BTC is shown but not required: a token that follows BTC in a rising staircase is kept.
-  return { ...c, ok: c.fid && c.hh && c.hl };
-}
+export { reliability } from './core/btcswings.js';
 
 const SORTS = [
   { key: 'asym', label: 'Asymétrie', fn: (t) => t.asym ?? -99 },

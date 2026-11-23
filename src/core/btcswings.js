@@ -106,3 +106,24 @@ export function corrBeta(b, btc, from) {
   xs.forEach((x, k) => { cov += (x - mx) * (ys[k] - my); vx += (x - mx) ** 2; vy += (ys[k] - my) ** 2; });
   return { corr: cov / Math.sqrt(vx * vy), beta: cov / vy };
 }
+
+/**
+ * Reliable follower: followed BTC on every wave (fidelity), higher high (last
+ * up wave's peak > previous one's) and higher low (last down wave's low >
+ * previous one's). `beat` (beat BTC in every up wave) is reported, not required.
+ * t: /api/followers token ({ moves: [{p0, ret, max, min}], fidelity }), btc: BTC moves.
+ */
+export function reliability(t, waves, btc) {
+  const ups = []; const downs = [];
+  waves.forEach((w, k) => (w.kind === 'up' ? ups : downs).push(k));
+  const m = t.moves;
+  if (ups.some((k) => !m[k]) || downs.some((k) => !m[k])) return { ok: false };
+  const hi = (k) => m[k].p0 * (1 + m[k].max); const lo = (k) => m[k].p0 * (1 + m[k].min);
+  const c = {
+    fid: t.fidelity === waves.length,
+    beat: ups.every((k) => m[k].ret > btc[k].ret),
+    hh: ups.length < 2 || hi(ups[ups.length - 1]) > hi(ups[ups.length - 2]),
+    hl: downs.length < 2 || lo(downs[downs.length - 1]) > lo(downs[downs.length - 2]),
+  };
+  return { ...c, ok: c.fid && c.hh && c.hl };
+}
