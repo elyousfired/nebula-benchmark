@@ -53,7 +53,8 @@ export function ZoomChart({ waves, tokens, btcMove, days, prices }) {
     }).filter(Boolean);
 
   // Only the real data and the simulation up to x1 set the vertical scale (tight zoom).
-  const vals = lines.flatMap((l) => [...l.real, ...l.sim.filter(([t]) => t <= x1)].map((p) => p[1]));
+  // Scale on the real prices and the simulated value now; dashed lines going further are clipped.
+  const vals = lines.flatMap((l) => [...l.real.map((p) => p[1]), l.simNow]);
   let lo = Math.min(...vals); let hi = Math.max(...vals); const pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad;
   const x = (t) => P.l + ((t - x0) / (x1 - x0)) * (W - P.l - P.r);
   const y = (v) => P.t + ((hi - v) / (hi - lo)) * (H - P.t - P.b);
@@ -68,6 +69,7 @@ export function ZoomChart({ waves, tokens, btcMove, days, prices }) {
   return (
     <div className="zm-wrap">
       <svg viewBox={`0 0 ${W} ${H}`} className="sq-chart" aria-label="Zoom sur les dernières 24 heures, réel contre simulation">
+        <defs><clipPath id="zm-clip"><rect x={P.l} y={P.t} width={W - P.l - P.r} height={H - P.t - P.b} /></clipPath></defs>
         <rect x={x(now)} y={P.t} width={x(x1) - x(now)} height={H - P.t - P.b} className="sim-zone" />
         {grid.map((v) => <g key={v}><line x1={P.l} x2={x(x1)} y1={y(v)} y2={y(v)} className="sim-grid" /><text x={4} y={y(v) + 4} className="sq-lbl">{v === 100 ? '100' : `${v > 100 ? '+' : ''}${v - 100}%`}</text></g>)}
         <line x1={x(tA)} x2={x(tA)} y1={P.t} y2={H - P.b} className="sq-ceil" />
@@ -76,7 +78,7 @@ export function ZoomChart({ waves, tokens, btcMove, days, prices }) {
         <text x={x(now) + 4} y={P.t + 12} className="sq-lbl">maintenant</text>
         {hours.map((t) => <text key={t} x={x(t)} y={H - 6} textAnchor="middle" className="sq-lbl">{new Date(t).toISOString().slice(11, 16)}</text>)}
         {lines.map((l) => (
-          <g key={l.s} opacity={dim(l.s)}>
+          <g key={l.s} opacity={dim(l.s)} clipPath="url(#zm-clip)">
             <polyline points={path(l.sim)} fill="none" stroke={l.color} strokeWidth="1.5" strokeDasharray="4 4" opacity="0.75" />
             <polyline points={path(l.real)} fill="none" stroke={l.color} strokeWidth={hover === l.s ? 3 : l.s === 'BTCUSDT' ? 2.2 : 1.6} />
             {l.realNow != null && <circle cx={x(now)} cy={y(l.realNow)} r={hover === l.s ? 4.5 : 3} fill={l.color} />}

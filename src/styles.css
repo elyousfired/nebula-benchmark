@@ -239,3 +239,4 @@ tbody tr { cursor: pointer; }
 .zm-head { color: var(--muted); border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--card); }
 .zm-row i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
 @media (max-width: 900px) { .zm-wrap { grid-template-columns: 1fr; } }
+.zm-row span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
