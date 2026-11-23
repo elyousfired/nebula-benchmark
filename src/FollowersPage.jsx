@@ -3,6 +3,9 @@ import { Header } from './components/Panels.jsx';
 import { WaveChart } from './components/WaveChart.jsx';
 import { SimChart, simColor } from './components/SimChart.jsx';
 import { ZoomChart } from './components/ZoomChart.jsx';
+import { PerfChart } from './components/PerfChart.jsx';
+import { buildCurves } from './core/curves.js';
+import { colorOf, fmtPts } from './lib/format.js';
 
 // BTC waves (up / down, fixed dates) and how every Bybit spot token followed
 // them. Data: /api/followers (daily, 1 h cache); the wave in progress uses the
@@ -107,6 +110,14 @@ export default function FollowersPage({ scan, onBack }) {
     setSimSel(cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]);
   };
   const [simQ, setSimQ] = useState('');
+  const [monthHl, setMonthHl] = useState(null);
+  // Last 30 days of the simulation's tokens, same chart as the main page's Top 50 (4H, points since the start).
+  const month = useMemo(() => {
+    const list = simSyms.map((s) => scan.tokens.find((t) => t.symbol === s)).filter(Boolean);
+    if (!list.length) return null;
+    const c = buildCurves(list, scan.liveSeries, 'month', Date.now());
+    return { ...c, order: list.map((t) => t.symbol).filter((s) => c.curves[s]) };
+  }, [simSyms.join(','), scan.tokens, scan.liveSeries]); // eslint-disable-line react-hooks/exhaustive-deps
   // Chips: selected first, then the best 20 candidates (or every match of the search).
   const simChips = useMemo(() => {
     if (!sim) return [];
@@ -191,6 +202,35 @@ export default function FollowersPage({ scan, onBack }) {
                 <span className="muted small">({simSyms.length} sélectionnés · {sim.cands.length} tokens ont suivi le BTC sur les {data.waves.length} vagues, classés par asymétrie)</span>
               </div>
               <SimChart waves={data.waves} tokens={simSyms.map((s) => data.tokens.find((t) => t.symbol === s)).filter(Boolean)} btcMove={simMove ?? sim.avgMove} days={simDays ?? sim.avgDays} />
+            </div>
+          )}
+
+          {sim && (
+            <div className="card">
+              <div className="card-head">
+                <div>
+                  <div className="card-title">📅 DERNIER MOIS · COURBES 30J · {month?.order.length ?? 0} tokens de la simulation</div>
+                  <div className="muted small">Performance en points (%) depuis le début de la période · bougies 4H alignées UTC · même graphique que le Top 50 de la page principale.</div>
+                </div>
+                {month && (
+                  <div className="vp-legend">
+                    <span className="chip">Benchmark <b>{fmtPts(month.bench.length ? month.bench[month.bench.length - 1].v : null)}</b></span>
+                    <span className="chip gold">EMA20 bench <b>{fmtPts(month.ema.length ? month.ema[month.ema.length - 1].v : null)}</b></span>
+                  </div>
+                )}
+              </div>
+              {!month ? <div className="muted small">{scan.tokens.length ? 'Aucun token sélectionné.' : 'Scan en cours…'}</div> : (
+                <>
+                  <PerfChart curves={month.curves} order={month.order} bench={month.bench} ema={month.ema} horizon="month" highlight={monthHl} onHighlight={setMonthHl} showBench />
+                  <div className="legend">
+                    {month.order.map((s) => (
+                      <button key={s} className={`legend-item ${monthHl === s ? 'on' : ''}`} onClick={() => setMonthHl(monthHl === s ? null : s)}>
+                        <span className="dot" style={{ background: colorOf(s) }} />{s.replace('USDT', '')}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
