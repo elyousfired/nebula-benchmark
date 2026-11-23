@@ -197,7 +197,7 @@ export default function FollowersPage({ scan, onBack }) {
           {sim && (
             <div className="card">
               <div className="card-title">🔍 ZOOM · DERNIÈRES 24 H · réel (live) contre simulation</div>
-              <div className="muted small">Trait plein = prix réel (bougies 1h + prix live, mis à jour toutes les 20 s). Pointillés = la simulation, qui démarre à 00:00 UTC aujourd'hui (base 100 pour chaque ligne). À droite : réel depuis 00:00 UTC, et (sim) où la simulation dit qu'il devrait être maintenant. Mêmes tokens que la simulation.</div>
+              <div className="muted small">Trait plein = prix réel (bougies 1h + prix live, mis à jour toutes les 20 s). Pointillés = la simulation, qui démarre il y a 24 h et avance avec le temps (base 100 pour chaque ligne). Tableau : réel sur les dernières 24 h, sim = où la simulation dit qu'il devrait être maintenant, écart = réel − sim (survolez une ligne pour la mettre en avant). Mêmes tokens que la simulation.</div>
               <ZoomChart
                 waves={data.waves}
                 tokens={simSyms.map((s) => data.tokens.find((t) => t.symbol === s)).filter(Boolean)}

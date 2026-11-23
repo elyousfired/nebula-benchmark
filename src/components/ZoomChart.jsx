@@ -34,8 +34,8 @@ export function ZoomChart({ waves, tokens, btcMove, days, prices }) {
   if (!d) return <div className="muted small">Chargement des dernières 24 h…</div>;
   void tick;
   const now = Date.now();
-  const tA = Math.floor(now / DAY) * DAY; // simulation anchor: today 00:00 UTC
-  const x0 = now - DAY; const x1 = now + 6 * HOUR; // last 24h + 6h of simulation ahead
+  const tA = Math.floor((now - DAY) / HOUR) * HOUR; // simulation anchor: rolling, 24h ago (on the hour)
+  const x0 = tA; const x1 = now + 6 * HOUR; // the rolling last 24h + 6h of simulation ahead
   const shape = avgRallyShape(d.daily, waves.filter((w) => w.kind === 'up' && !w.open));
   const lines = [{ s: 'BTCUSDT', name: 'BTC', amp: 1 }, ...tokens.map((t) => ({ s: t.symbol, name: t.symbol.replace('USDT', ''), amp: t.upAmp ?? 1 }))]
     .map((l, i) => {
@@ -71,7 +71,7 @@ export function ZoomChart({ waves, tokens, btcMove, days, prices }) {
         <rect x={x(now)} y={P.t} width={x(x1) - x(now)} height={H - P.t - P.b} className="sim-zone" />
         {grid.map((v) => <g key={v}><line x1={P.l} x2={x(x1)} y1={y(v)} y2={y(v)} className="sim-grid" /><text x={4} y={y(v) + 4} className="sq-lbl">{v === 100 ? '100' : `${v > 100 ? '+' : ''}${v - 100}%`}</text></g>)}
         <line x1={x(tA)} x2={x(tA)} y1={P.t} y2={H - P.b} className="sq-ceil" />
-        <text x={x(tA) + 4} y={P.t + 12} className="sq-lbl">00:00 UTC · départ simulation</text>
+        <text x={x(tA) + 4} y={P.t + 12} className="sq-lbl">il y a 24 h · départ simulation (base 100)</text>
         <line x1={x(now)} x2={x(now)} y1={P.t} y2={H - P.b} className="zm-now" />
         <text x={x(now) + 4} y={P.t + 12} className="sq-lbl">maintenant</text>
         {hours.map((t) => <text key={t} x={x(t)} y={H - 6} textAnchor="middle" className="sq-lbl">{new Date(t).toISOString().slice(11, 16)}</text>)}
