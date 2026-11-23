@@ -231,3 +231,11 @@ tbody tr { cursor: pointer; }
 .zm-now { stroke: var(--gold); stroke-width: 1; opacity: .7; }
 .zm-lbl { font-size: 11px; font-weight: 700; }
 .zm-lbl .muted { fill: var(--muted); font-weight: 400; }
+
+.zm-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 12px; align-items: start; }
+.zm-legend { display: flex; flex-direction: column; font-size: 11px; max-height: 360px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; }
+.zm-row { display: grid; grid-template-columns: 1fr 64px 64px 52px; gap: 4px; padding: 3px 8px; cursor: default; }
+.zm-row:hover, .zm-row.on { background: var(--card2); }
+.zm-head { color: var(--muted); border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--card); }
+.zm-row i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+@media (max-width: 900px) { .zm-wrap { grid-template-columns: 1fr; } }
