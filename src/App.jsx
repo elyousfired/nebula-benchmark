@@ -17,8 +17,9 @@ import AgentPage from './AgentPage.jsx';
 import Top5Page from './Top5Page.jsx';
 import ComboPage from './ComboPage.jsx';
 import StablePage from './StablePage.jsx';
+import FollowersPage from './FollowersPage.jsx';
 
-const ROUTES = { '/squeeze': 'squeeze', '/agent': 'agent', '/top5': 'top5', '/combo': 'combo', '/stable': 'stable' };
+const ROUTES = { '/squeeze': 'squeeze', '/agent': 'agent', '/top5': 'top5', '/combo': 'combo', '/stable': 'stable', '/btc': 'btc' };
 const routeOf = () => ROUTES[window.location.pathname.replace(/\/$/, '')] || 'main';
 
 const OPTS_KEY = 'nebula_bench_v2_opts';
@@ -110,6 +111,7 @@ export default function App() {
   const lastEma = chart.ema.length ? chart.ema[chart.ema.length - 1].v : null;
   const hLabel = HORIZONS[opts.horizon].label;
 
+  if (route === 'btc') return <FollowersPage scan={scan} onBack={go('/')} />;
   if (route === 'stable') return <StablePage scan={scan} onBack={go('/')} />;
   if (route === 'combo') return <ComboPage scan={scan} top50={alertList} onBack={go('/')} />;
   if (route === 'top5') return <Top5Page scan={scan} top50={alertList} onBack={go('/')} />;
@@ -120,7 +122,7 @@ export default function App() {
     <div className="app">
       <Header scan={scan} onRescan={scan.rescan} />
       <Controls opts={opts} set={set} />
-      <div className="controls"><a className="btn" href="/top5" onClick={go('/top5')}>🥇 Top 5 →</a><a className="btn" href="/combo" onClick={go('/combo')}>🎯 Top 5 30J ∩ 24H →</a><a className="btn" href="/stable" onClick={go('/stable')}>🧱 Top 50 stables →</a><a className="btn" href="/squeeze" onClick={go('/squeeze')}>📦 Squeeze Radar →</a><a className="btn" href="/agent" onClick={go('/agent')}>🤖 Agent Top 50 →</a></div>
+      <div className="controls"><a className="btn" href="/top5" onClick={go('/top5')}>🥇 Top 5 →</a><a className="btn" href="/combo" onClick={go('/combo')}>🎯 Top 5 30J ∩ 24H →</a><a className="btn" href="/stable" onClick={go('/stable')}>🧱 Top 50 stables →</a><a className="btn" href="/btc" onClick={go('/btc')}>₿ Hausses BTC →</a><a className="btn" href="/squeeze" onClick={go('/squeeze')}>📦 Squeeze Radar →</a><a className="btn" href="/agent" onClick={go('/agent')}>🤖 Agent Top 50 →</a></div>
 
       {tokens.length === 0 ? (
         <div className="card empty">

@@ -33,6 +33,10 @@
                      {
                          "destination":  "/index.html",
                          "source":  "/stable"
+                     },
+                     {
+                         "destination":  "/index.html",
+                         "source":  "/btc"
                      }
                  ],
     "functions":  {
@@ -41,6 +45,9 @@
                                          },
                       "api/stable.js":  {
                                             "maxDuration":  30
-                                        }
+                                        },
+                      "api/followers.js":  {
+                                               "maxDuration":  30
+                                           }
                   }
 }

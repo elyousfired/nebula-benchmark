@@ -206,3 +206,5 @@ tbody tr { cursor: pointer; }
 .st-top5 { stroke: var(--gold); stroke-dasharray: 2 2; opacity: .6; }
 
 .st-now { fill: var(--gold); }
+
+.t5-search { background: var(--card); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 6px 10px; font-family: inherit; }
