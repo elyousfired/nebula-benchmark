@@ -55,6 +55,10 @@ export default function FollowersPage({ scan, onBack }) {
     return w.open && px > 0 ? px / m.p0 - 1 : m.ret;
   };
   const btcRow = data ? { symbol: 'BTCUSDT', moves: data.btc } : null;
+  // Live move since BTC's latest low (lowest point of the wave in progress, detected by the API).
+  const sinceLow = (t) => (data?.low && t.pLow > 0 && live[t.symbol] > 0 ? live[t.symbol] / t.pLow - 1 : null);
+  const btcSinceLow = data?.low && btcLive > 0 ? btcLive / data.low.btcClose - 1 : null;
+  const lowHead = data?.low ? `Depuis creux BTC (${new Date(data.low.t).toISOString().slice(8, 10)}/${new Date(data.low.t).toISOString().slice(5, 7)})` : 'Depuis creux BTC';
 
   const rows = useMemo(() => {
     if (!data) return [];
@@ -142,12 +146,13 @@ export default function FollowersPage({ scan, onBack }) {
               <div className="muted small">Fiable = a suivi le BTC sur les {data.waves.length} vagues ET plus haut plus haut (sommet de la dernière hausse &gt; sommet de la précédente) ET plus bas plus haut (creux de la dernière baisse &gt; creux de la précédente). « Bat BTC » = a fait mieux que le BTC dans chaque hausse (information, pas obligatoire).</div>
               <div className="table-wrap">
                 <table className="sq-table">
-                  <thead><tr><th>Token</th>{data.waves.map((x) => <th key={x.name}>{x.name}</th>)}<th>Ampl. ↑</th><th>Ampl. ↓</th><th>Asymétrie</th><th>Corr.</th><th>Bat BTC</th></tr></thead>
+                  <thead><tr><th>Token</th>{data.waves.map((x) => <th key={x.name}>{x.name}</th>)}<th>{lowHead}</th><th>Ampl. ↑</th><th>Ampl. ↓</th><th>Asymétrie</th><th>Corr.</th><th>Bat BTC</th></tr></thead>
                   <tbody>
                     {sim.reliable.map((t) => (
                       <tr key={t.symbol} className={sel === t.symbol ? 'on' : ''} onClick={() => setSel(t.symbol)}>
                         <td><b>{t.symbol.replace('USDT', '')}</b></td>
                         {data.waves.map((x, k) => <td key={x.name} className={cls(mv(t, k))}>{pc(mv(t, k))}</td>)}
+                        <td className={sinceLow(t) > btcSinceLow ? 'pos' : 'neg'}><b>{pc(sinceLow(t))}</b></td>
                         <td className="pos">{xx(t.upAmp)}</td><td className={t.downAmp > 1 ? 'neg' : ''}>{xx(t.downAmp)}</td>
                         <td className={t.asym > 1 ? 'pos' : 'neg'}><b>{t.asym.toFixed(1)}</b></td><td>{t.corr?.toFixed(2)}</td>
                         <td>{reliability(t, data.waves, data.btc).beat ? '✅' : '—'}</td>
@@ -260,16 +265,18 @@ export default function FollowersPage({ scan, onBack }) {
                   <thead><tr>
                     <th>#</th><th>Token</th><th title="Vagues où le token est allé dans le sens du BTC">Fidélité</th>
                     {data.waves.map((x) => <th key={x.name}>{x.name}</th>)}
+                    <th title="Mouvement live depuis le dernier creux du BTC (détecté automatiquement)">{lowHead}</th>
                     <th title="Somme des mouvements du token pendant les hausses du BTC">Gain hausses</th><th title="Hausse du token / hausse du BTC (moyenne)">Ampl. ↑</th><th title="Baisse du token / baisse du BTC (moyenne)">Ampl. ↓</th><th title="Ampl. ↑ / Ampl. ↓ : > 1 = monte plus qu'il ne baisse">Asymétrie</th><th>Corr.</th>
                   </tr></thead>
                   <tbody>
-                    <tr className="on"><td /><td><b>BTC</b></td><td>—</td>{data.waves.map((x, k) => <td key={x.name} className={cls(mv(btcRow, k))}><b>{pc(mv(btcRow, k))}</b></td>)}<td className="pos"><b>{pc(data.waves.reduce((a, w, k) => a + (w.kind === 'up' ? data.btc[k].ret : 0), 0))}</b></td><td>1.0×</td><td>1.0×</td><td>1.0</td><td>1.00</td></tr>
+                    <tr className="on"><td /><td><b>BTC</b></td><td>—</td>{data.waves.map((x, k) => <td key={x.name} className={cls(mv(btcRow, k))}><b>{pc(mv(btcRow, k))}</b></td>)}<td className={cls(btcSinceLow)}><b>{pc(btcSinceLow)}</b></td><td className="pos"><b>{pc(data.waves.reduce((a, w, k) => a + (w.kind === 'up' ? data.btc[k].ret : 0), 0))}</b></td><td>1.0×</td><td>1.0×</td><td>1.0</td><td>1.00</td></tr>
                     {rows.map((t, i) => (
                       <tr key={t.symbol} className={sel === t.symbol ? 'on' : ''} onClick={() => setSel(t.symbol)}>
                         <td className="muted">{i + 1}</td>
                         <td><b>{t.symbol.replace('USDT', '')}</b></td>
                         <td className={t.fidelity === t.waves ? 'pos' : ''}>{t.fidelity}/{t.waves}</td>
                         {data.waves.map((x, k) => <td key={x.name} className={cls(mv(t, k))}>{pc(mv(t, k))}</td>)}
+                        <td className={sinceLow(t) > btcSinceLow ? 'pos' : 'neg'}><b>{pc(sinceLow(t))}</b></td>
                         <td className={cls(t.upGain)}><b>{pc(t.upGain)}</b></td>
                         <td className={t.upAmp > 1 ? 'pos' : ''}>{xx(t.upAmp)}</td>
                         <td className={t.downAmp > 1 ? 'neg' : ''}>{xx(t.downAmp)}</td>

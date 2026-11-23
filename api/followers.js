@@ -42,6 +42,11 @@ export async function buildFollowers(now = Date.now()) {
   const days = Math.ceil((now - waves[0].t0) / DAY) + 5;
   const btc = await daily('BTCUSDT', days, now);
   const btcMoves = tokenSwings(btc, waves);
+  // Latest BTC low: the lowest daily low of the wave in progress (moves automatically if BTC makes a new low).
+  const cur = waves[waves.length - 1];
+  let iLow = -1;
+  for (let i = 0; i < btc.t.length; i++) if (btc.t[i] > cur.t0 && btc.t[i] <= cur.t1 && (iLow < 0 || btc.l[i] < btc.l[iLow])) iLow = i;
+  const low = iLow >= 0 ? { t: btc.t[iLow], btcLow: btc.l[iLow], btcClose: btc.c[iLow] } : null;
   const tickers = (await get('tickers', { category: 'spot' })).list || [];
   const universe = selectUniverse(tickers, { limit: 500 }).map((t) => t.symbol);
   const tokens = [];
@@ -53,11 +58,12 @@ export async function buildFollowers(now = Date.now()) {
         const b = await daily(s, days, now);
         const moves = tokenSwings(b, waves);
         if (moves.every((m) => m == null)) continue;
-        tokens.push({ symbol: s, moves, ...waveScores(waves, moves, btcMoves), ...corrBeta(b, btc, waves[0].t0) });
+        const iL = low ? b.t.indexOf(low.t) : -1;
+        tokens.push({ symbol: s, moves, pLow: iL >= 0 ? b.c[iL] : null, ...waveScores(waves, moves, btcMoves), ...corrBeta(b, btc, waves[0].t0) });
       } catch { /* skipped */ }
     }
   }));
-  return { generatedAt: now, waves, btc: btcMoves, universe: universe.length, tokens };
+  return { generatedAt: now, waves, btc: btcMoves, low, universe: universe.length, tokens };
 }
 
 export default async function handler(req, res) {
