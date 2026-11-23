@@ -34,9 +34,13 @@ export function SimChart({ waves, tokens, btcMove, days }) {
   useEffect(() => {
     let alive = true;
     const list = ['BTCUSDT', ...tokens.map((t) => t.symbol)];
-    Promise.all(list.map((s) => fetchKlines(s, 'D', 400).then(parseKlines).catch(() => null)))
+    // Daily candles (the last one is today's, still forming): reloaded every 4h, so the
+    // "now" point and the simulation's start follow the market.
+    const load = () => Promise.all(list.map((s) => fetchKlines(s, 'D', 400).then(parseKlines).catch(() => null)))
       .then((r) => alive && setBars(Object.fromEntries(list.map((s, i) => [s, r[i]]))));
-    return () => { alive = false; };
+    load();
+    const id = setInterval(load, 4 * 3_600_000);
+    return () => { alive = false; clearInterval(id); };
   }, [syms]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const model = useMemo(() => {
