@@ -65,10 +65,20 @@ export function ZoomChart({ waves, tokens, btcMove, days, prices }) {
   const grid = []; for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) grid.push(v);
   const table = [...lines].sort((a, b) => (b.realNow ?? 0) - (a.realNow ?? 0));
   const dim = (s) => (hover && hover !== s ? 0.12 : 1);
+  // Last HH of each token: highest 1H high of the last 24h, and the live distance to it.
+  const hh = lines.map((l) => {
+    const b = d.h[l.s];
+    let hi = -Infinity; let at = null;
+    for (let k = 0; k < b.t.length; k++) if (b.t[k] + HOUR > now - DAY && b.h[k] > hi) { hi = b.h[k]; at = b.t[k]; }
+    const price = prices[l.s] > 0 ? prices[l.s] : b.c[b.c.length - 1];
+    return { ...l, hi, at, price, dist: price / hi - 1 };
+  }).filter((x) => Number.isFinite(x.hi)).sort((a, b) => b.dist - a.dist);
   const barVals = lines.flatMap((l) => [l.realNow ?? 100, l.simNow, 100]);
   const barLo = Math.min(...barVals); const barHi = Math.max(...barVals) + 0.5;
 
+  const fp = (p) => (p >= 1000 ? p.toFixed(0) : p >= 1 ? p.toFixed(3) : p.toPrecision(4));
   return (
+    <>
     <div className="zm-wrap">
       <svg viewBox={`0 0 ${W} ${H}`} className="sq-chart" aria-label="Zoom sur les dernières 24 heures, réel contre simulation">
         <defs><clipPath id="zm-clip"><rect x={P.l} y={P.t} width={W - P.l - P.r} height={H - P.t - P.b} /></clipPath></defs>
@@ -115,5 +125,24 @@ export function ZoomChart({ waves, tokens, btcMove, days, prices }) {
         })}
       </div>
     </div>
+    <div className="card-title" style={{ marginTop: 8 }}>📍 DERNIER HH (plus haut des 24 dernières heures) · du plus proche au plus loin</div>
+    <div className="table-wrap">
+      <table className="sq-table">
+        <thead><tr><th>#</th><th>Token</th><th>HH 24 h</th><th>Heure du HH (UTC)</th><th>Prix live</th><th>Distance au HH</th></tr></thead>
+        <tbody>
+          {hh.map((x, i) => (
+            <tr key={x.s} className={hover === x.s ? 'on' : ''} onMouseEnter={() => setHover(x.s)} onMouseLeave={() => setHover(null)}>
+              <td className="muted">{i + 1}</td>
+              <td><b>{x.name}</b></td>
+              <td>{fp(x.hi)}</td>
+              <td className="muted">{new Date(x.at).toISOString().slice(11, 16)}</td>
+              <td>{fp(x.price)}</td>
+              <td className={x.dist >= 0 ? 'pos' : x.dist > -0.03 ? 'gold' : 'neg'}><b>{x.dist >= 0 ? `au-dessus +${(x.dist * 100).toFixed(1)}%` : `${(x.dist * 100).toFixed(1)}%`}</b></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    </>
   );
 }
