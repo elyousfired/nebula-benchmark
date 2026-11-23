@@ -65,6 +65,8 @@ export function ZoomChart({ waves, tokens, btcMove, days, prices }) {
   const grid = []; for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) grid.push(v);
   const table = [...lines].sort((a, b) => (b.realNow ?? 0) - (a.realNow ?? 0));
   const dim = (s) => (hover && hover !== s ? 0.12 : 1);
+  const barVals = lines.flatMap((l) => [l.realNow ?? 100, l.simNow, 100]);
+  const barLo = Math.min(...barVals); const barHi = Math.max(...barVals) + 0.5;
 
   return (
     <div className="zm-wrap">
@@ -77,23 +79,36 @@ export function ZoomChart({ waves, tokens, btcMove, days, prices }) {
         <line x1={x(now)} x2={x(now)} y1={P.t} y2={H - P.b} className="zm-now" />
         <text x={x(now) + 4} y={P.t + 12} className="sq-lbl">maintenant</text>
         {hours.map((t) => <text key={t} x={x(t)} y={H - 6} textAnchor="middle" className="sq-lbl">{new Date(t).toISOString().slice(11, 16)}</text>)}
-        {lines.map((l) => (
-          <g key={l.s} opacity={dim(l.s)} clipPath="url(#zm-clip)">
-            <polyline points={path(l.sim)} fill="none" stroke={l.color} strokeWidth="1.5" strokeDasharray="4 4" opacity="0.75" />
-            <polyline points={path(l.real)} fill="none" stroke={l.color} strokeWidth={hover === l.s ? 3 : l.s === 'BTCUSDT' ? 2.2 : 1.6} />
-            {l.realNow != null && <circle cx={x(now)} cy={y(l.realNow)} r={hover === l.s ? 4.5 : 3} fill={l.color} />}
-          </g>
-        ))}
+        {lines.map((l) => {
+          const btc = l.s === 'BTCUSDT';
+          const on = hover === l.s;
+          // Dashed simulation only for the hovered token (or when few tokens), real lines thin; BTC = reference.
+          const showSim = on || lines.length <= 6;
+          return (
+            <g key={l.s} opacity={hover ? dim(l.s) : btc ? 1 : 0.55} clipPath="url(#zm-clip)">
+              {showSim && <polyline points={path(l.sim)} fill="none" stroke={l.color} strokeWidth="2" strokeDasharray="6 4" />}
+              <polyline points={path(l.real)} fill="none" stroke={btc ? '#ffffff' : l.color} strokeWidth={on ? 3 : btc ? 2.6 : 1.2} />
+              {l.realNow != null && <circle cx={x(now)} cy={y(l.realNow)} r={on ? 5 : btc ? 4 : 2.5} fill={btc ? '#ffffff' : l.color} />}
+              {on && <text x={x(now) - 6} y={y(l.realNow ?? 100) - 8} textAnchor="end" fill={l.color} className="zm-lbl">{l.name} {fmt(l.realNow)} · sim {fmt(l.simNow)}</text>}
+            </g>
+          );
+        })}
       </svg>
       <div className="zm-legend">
-        <div className="zm-row zm-head"><span>Token</span><span>Réel</span><span>Sim</span><span>Écart</span></div>
+        <div className="zm-row zm-head"><span>Token</span><span>Réel</span><span>Réel ▮ contre sim │</span><span>Écart</span></div>
         {table.map((l) => {
           const gap = l.realNow != null ? l.realNow - l.simNow : null;
+          // Mini bar on a shared scale: filled = real, tick = simulation.
+          const sc = (v) => `${Math.max(0, Math.min(100, ((v - barLo) / (barHi - barLo)) * 100))}%`;
           return (
             <div key={l.s} className={`zm-row ${hover === l.s ? 'on' : ''}`} onMouseEnter={() => setHover(l.s)} onMouseLeave={() => setHover(null)}>
-              <span><i style={{ background: l.color }} />{l.name}</span>
+              <span><i style={{ background: l.s === 'BTCUSDT' ? '#fff' : l.color }} />{l.name}</span>
               <b className={l.realNow >= 100 ? 'pos' : 'neg'}>{fmt(l.realNow)}</b>
-              <span className="muted">{fmt(l.simNow)}</span>
+              <span className="zm-bar">
+                <span className="zm-zero" style={{ left: sc(100) }} />
+                <span className={`zm-fill ${l.realNow >= 100 ? 'up' : 'dn'}`} style={{ left: l.realNow >= 100 ? sc(100) : sc(l.realNow ?? 100), width: `calc(${sc(Math.max(l.realNow ?? 100, 100))} - ${sc(Math.min(l.realNow ?? 100, 100))})` }} />
+                <span className="zm-sim" style={{ left: sc(l.simNow) }} title={`sim ${fmt(l.simNow)}`} />
+              </span>
               <span className={gap == null ? 'muted' : gap >= 0 ? 'pos' : 'neg'}>{gap == null ? '—' : `${gap >= 0 ? '+' : ''}${gap.toFixed(1)}`}</span>
             </div>
           );
