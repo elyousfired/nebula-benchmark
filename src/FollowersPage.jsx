@@ -11,7 +11,8 @@ const cls = (x) => (x == null ? 'muted' : x > 0 ? 'pos' : x < 0 ? 'neg' : '');
 const SORTS = [
   { key: 'asym', label: 'Asymétrie', fn: (t) => t.asym ?? -99 },
   { key: 'upAmp', label: 'Ampl. hausse', fn: (t) => t.upAmp ?? -99 },
-  { key: 'fidelity', label: 'Fidélité', fn: (t) => t.fidelity * 1000 + (t.corr ?? 0) },
+  // Fidelity first, then the most profitable: total of its moves in BTC's up waves.
+  { key: 'fidelity', label: 'Fidélité', fn: (t) => t.fidelity * 1e6 + (t.upGain ?? -99) },
 ];
 
 export default function FollowersPage({ scan, onBack }) {
@@ -47,7 +48,11 @@ export default function FollowersPage({ scan, onBack }) {
   const rows = useMemo(() => {
     if (!data) return [];
     const needle = q.trim().toUpperCase();
-    let r = data.tokens.filter((t) => t.symbol.includes(needle));
+    let r = data.tokens.filter((t) => t.symbol.includes(needle)).map((t) => ({
+      ...t,
+      // Sum of the token's moves in BTC's up waves (its gain when riding the rallies).
+      upGain: data.waves.reduce((a, w, k) => a + (w.kind === 'up' && t.moves[k] ? t.moves[k].ret : 0), 0),
+    }));
     if (view === 'all') {
       if (onlyFull) r = r.filter((t) => t.fidelity === data.waves.length);
       const f = SORTS.find((s) => s.key === sort).fn;
@@ -111,16 +116,17 @@ export default function FollowersPage({ scan, onBack }) {
                   <thead><tr>
                     <th>#</th><th>Token</th><th title="Vagues où le token est allé dans le sens du BTC">Fidélité</th>
                     {data.waves.map((x) => <th key={x.name}>{x.name}</th>)}
-                    <th title="Hausse du token / hausse du BTC (moyenne)">Ampl. ↑</th><th title="Baisse du token / baisse du BTC (moyenne)">Ampl. ↓</th><th title="Ampl. ↑ / Ampl. ↓ : > 1 = monte plus qu'il ne baisse">Asymétrie</th><th>Corr.</th>
+                    <th title="Somme des mouvements du token pendant les hausses du BTC">Gain hausses</th><th title="Hausse du token / hausse du BTC (moyenne)">Ampl. ↑</th><th title="Baisse du token / baisse du BTC (moyenne)">Ampl. ↓</th><th title="Ampl. ↑ / Ampl. ↓ : > 1 = monte plus qu'il ne baisse">Asymétrie</th><th>Corr.</th>
                   </tr></thead>
                   <tbody>
-                    <tr className="on"><td /><td><b>BTC</b></td><td>—</td>{data.waves.map((x, k) => <td key={x.name} className={cls(mv(btcRow, k))}><b>{pc(mv(btcRow, k))}</b></td>)}<td>1.0×</td><td>1.0×</td><td>1.0</td><td>1.00</td></tr>
+                    <tr className="on"><td /><td><b>BTC</b></td><td>—</td>{data.waves.map((x, k) => <td key={x.name} className={cls(mv(btcRow, k))}><b>{pc(mv(btcRow, k))}</b></td>)}<td className="pos"><b>{pc(data.waves.reduce((a, w, k) => a + (w.kind === 'up' ? data.btc[k].ret : 0), 0))}</b></td><td>1.0×</td><td>1.0×</td><td>1.0</td><td>1.00</td></tr>
                     {rows.map((t, i) => (
                       <tr key={t.symbol} className={sel === t.symbol ? 'on' : ''} onClick={() => setSel(t.symbol)}>
                         <td className="muted">{i + 1}</td>
                         <td><b>{t.symbol.replace('USDT', '')}</b></td>
                         <td className={t.fidelity === t.waves ? 'pos' : ''}>{t.fidelity}/{t.waves}</td>
                         {data.waves.map((x, k) => <td key={x.name} className={cls(mv(t, k))}>{pc(mv(t, k))}</td>)}
+                        <td className={cls(t.upGain)}><b>{pc(t.upGain)}</b></td>
                         <td className={t.upAmp > 1 ? 'pos' : ''}>{xx(t.upAmp)}</td>
                         <td className={t.downAmp > 1 ? 'neg' : ''}>{xx(t.downAmp)}</td>
                         <td className={t.asym > 1 ? 'pos' : 'neg'}><b>{t.asym == null ? '—' : t.asym.toFixed(1)}</b></td>
