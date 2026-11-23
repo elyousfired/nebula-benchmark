@@ -39,7 +39,7 @@ function timeTicks(min, max) {
 function fmtX(ts, horizon) {
   const d = new Date(ts);
   if (horizon === 'day') return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + (horizon === 'week' ? ` ${String(d.getHours()).padStart(2, '0')}h` : '');
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + (horizon === 'week' || horizon === 'd3' ? ` ${String(d.getHours()).padStart(2, '0')}h` : '');
 }
 
 /**

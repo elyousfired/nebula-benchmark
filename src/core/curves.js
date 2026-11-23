@@ -11,6 +11,7 @@ import { DAY, INTERVAL_MS, priceAt, resample, emaSeries, barsLength } from './ba
 export const CURVE_HORIZONS = {
   day: { window: DAY, src: 'bars15', srcIv: INTERVAL_MS['15'], iv: INTERVAL_MS['15'] },
   week: { window: 7 * DAY, src: 'bars60', srcIv: INTERVAL_MS['60'], iv: INTERVAL_MS['60'] },
+  d3: { window: 3 * DAY, src: 'bars60', srcIv: INTERVAL_MS['60'], iv: INTERVAL_MS['60'] },
   month: { window: 30 * DAY, src: 'bars60', srcIv: INTERVAL_MS['60'], iv: INTERVAL_MS['240'] },
 };
 
