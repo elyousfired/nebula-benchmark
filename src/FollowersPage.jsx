@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Header } from './components/Panels.jsx';
 import { WaveChart } from './components/WaveChart.jsx';
 import { SimChart, simColor } from './components/SimChart.jsx';
+import { ZoomChart } from './components/ZoomChart.jsx';
 
 // BTC waves (up / down, fixed dates) and how every Bybit spot token followed
 // them. Data: /api/followers (daily, 1 h cache); the wave in progress uses the
@@ -190,6 +191,20 @@ export default function FollowersPage({ scan, onBack }) {
                 <span className="muted small">({simSyms.length} sélectionnés · {sim.cands.length} tokens ont suivi le BTC sur les {data.waves.length} vagues, classés par asymétrie)</span>
               </div>
               <SimChart waves={data.waves} tokens={simSyms.map((s) => data.tokens.find((t) => t.symbol === s)).filter(Boolean)} btcMove={simMove ?? sim.avgMove} days={simDays ?? sim.avgDays} />
+            </div>
+          )}
+
+          {sim && (
+            <div className="card">
+              <div className="card-title">🔍 ZOOM · DERNIÈRES 24 H · réel (live) contre simulation</div>
+              <div className="muted small">Trait plein = prix réel (bougies 1h + prix live, mis à jour toutes les 20 s). Pointillés = la simulation, qui démarre à 00:00 UTC aujourd'hui (base 100 pour chaque ligne). À droite : réel depuis 00:00 UTC, et (sim) où la simulation dit qu'il devrait être maintenant. Mêmes tokens que la simulation.</div>
+              <ZoomChart
+                waves={data.waves}
+                tokens={simSyms.map((s) => data.tokens.find((t) => t.symbol === s)).filter(Boolean)}
+                btcMove={simMove ?? sim.avgMove}
+                days={simDays ?? sim.avgDays}
+                prices={{ ...live, BTCUSDT: btcLive }}
+              />
             </div>
           )}
 
