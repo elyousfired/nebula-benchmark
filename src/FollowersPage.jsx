@@ -9,6 +9,26 @@ import { SimChart, simColor } from './components/SimChart.jsx';
 const pc = (x) => (x == null || !Number.isFinite(x) ? '—' : `${x >= 0 ? '+' : ''}${(x * 100).toFixed(0)}%`);
 const xx = (x) => (x == null || !Number.isFinite(x) ? '—' : `${x.toFixed(1)}×`);
 const cls = (x) => (x == null ? 'muted' : x > 0 ? 'pos' : x < 0 ? 'neg' : '');
+/**
+ * Reliable follower: followed BTC on every wave, beat BTC in every up wave,
+ * higher high (last up wave's peak > previous one's) and higher low (last
+ * down wave's low > previous one's). Prices from each move's start price.
+ */
+export function reliability(t, waves, btc) {
+  const ups = []; const downs = [];
+  waves.forEach((w, k) => (w.kind === 'up' ? ups : downs).push(k));
+  const m = t.moves;
+  if (ups.some((k) => !m[k]) || downs.some((k) => !m[k])) return { ok: false };
+  const hi = (k) => m[k].p0 * (1 + m[k].max); const lo = (k) => m[k].p0 * (1 + m[k].min);
+  const c = {
+    fid: t.fidelity === waves.length,
+    beat: ups.every((k) => m[k].ret > btc[k].ret),
+    hh: ups.length < 2 || hi(ups[ups.length - 1]) > hi(ups[ups.length - 2]),
+    hl: downs.length < 2 || lo(downs[downs.length - 1]) > lo(downs[downs.length - 2]),
+  };
+  return { ...c, ok: c.fid && c.beat && c.hh && c.hl };
+}
+
 const SORTS = [
   { key: 'asym', label: 'Asymétrie', fn: (t) => t.asym ?? -99 },
   { key: 'upAmp', label: 'Ampl. hausse', fn: (t) => t.upAmp ?? -99 },
@@ -76,9 +96,10 @@ export default function FollowersPage({ scan, onBack }) {
     const avgMove = ups.reduce((a, { k }) => a + data.btc[k].ret, 0) / ups.length;
     const avgDays = Math.round(ups.reduce((a, { x }) => a + (x.t1 - x.t0) / 86_400_000, 0) / ups.length);
     const cands = data.tokens.filter((t) => t.fidelity === data.waves.length && t.asym != null).sort((a, b) => b.asym - a.asym);
-    return { avgMove, avgDays, cands };
+    const reliable = cands.filter((t) => reliability(t, data.waves, data.btc).ok);
+    return { avgMove, avgDays, cands, reliable };
   }, [data]);
-  const simSyms = simSel ?? sim?.cands.slice(0, 4).map((t) => t.symbol) ?? [];
+  const simSyms = simSel ?? sim?.reliable.map((t) => t.symbol) ?? [];
   const toggleSim = (s) => {
     const cur = simSyms;
     setSimSel(cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]);
@@ -121,6 +142,28 @@ export default function FollowersPage({ scan, onBack }) {
 
           {sim && (
             <div className="card">
+              <div className="card-title">✅ TOKENS FIABLES · {sim.reliable.length} sur {data.tokens.length}</div>
+              <div className="muted small">Fiable = a suivi le BTC sur les {data.waves.length} vagues ET a fait mieux que le BTC dans chaque hausse ET plus haut plus haut (sommet de la dernière hausse &gt; sommet de la précédente) ET plus bas plus haut (creux de la dernière baisse &gt; creux de la précédente).</div>
+              <div className="table-wrap">
+                <table className="sq-table">
+                  <thead><tr><th>Token</th>{data.waves.map((x) => <th key={x.name}>{x.name}</th>)}<th>Ampl. ↑</th><th>Ampl. ↓</th><th>Asymétrie</th><th>Corr.</th></tr></thead>
+                  <tbody>
+                    {sim.reliable.map((t) => (
+                      <tr key={t.symbol} className={sel === t.symbol ? 'on' : ''} onClick={() => setSel(t.symbol)}>
+                        <td><b>{t.symbol.replace('USDT', '')}</b></td>
+                        {data.waves.map((x, k) => <td key={x.name} className={cls(mv(t, k))}>{pc(mv(t, k))}</td>)}
+                        <td className="pos">{xx(t.upAmp)}</td><td className={t.downAmp > 1 ? 'neg' : ''}>{xx(t.downAmp)}</td>
+                        <td className="pos"><b>{t.asym.toFixed(1)}</b></td><td>{t.corr?.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {sim && (
+            <div className="card">
               <div className="card-title">🔮 SIMULATION · prochaine hausse du BTC</div>
               <div className="muted small">Traits pleins = vraies courbes (base 100 au début de la Hausse 1). Pointillés = simulation : le BTC monte selon la forme moyenne de ses 2 hausses passées, et chaque token bouge de son amplification moyenne (Ampl. ↑) × le mouvement du BTC. C'est une projection « si ça se répète comme avant », pas une prévision.</div>
               <div className="row-gap sim-controls">
@@ -131,6 +174,7 @@ export default function FollowersPage({ scan, onBack }) {
               </div>
               <div className="sim-chips">
                 <input placeholder="Ajouter un token…" value={simQ} onChange={(e) => setSimQ(e.target.value)} className="t5-search" />
+                <button className="btn primary" onClick={() => setSimSel(sim.reliable.map((t) => t.symbol))}>✅ Fiables ({sim.reliable.length})</button>
                 <button className="btn" onClick={() => setSimSel(sim.cands.slice(0, 10).map((t) => t.symbol))}>Top 10</button>
                 <button className="btn" onClick={() => setSimSel([])}>Vider</button>
                 {simChips.map((t) => {
