@@ -36,8 +36,18 @@ export function ZoomChart({ waves, tokens, btcMove, days, prices }) {
   const now = Date.now();
   const tA = Math.floor((now - DAY) / HOUR) * HOUR; // simulation anchor: rolling, 24h ago (on the hour)
   const x0 = tA; const x1 = now + 6 * HOUR; // the rolling last 24h + 6h of simulation ahead
-  const shape = avgRallyShape(d.daily, waves.filter((w) => w.kind === 'up' && !w.open));
-  const lines = [{ s: 'BTCUSDT', name: 'BTC', amp: 1 }, ...tokens.map((t) => ({ s: t.symbol, name: t.symbol.replace('USDT', ''), amp: t.upAmp ?? 1 }))]
+  void avgRallyShape; void btcMove; void days; void waves;
+  // Expected path = the token's amplification × BTC's REAL move over the same 24h
+  // (Ampl. ↑ when BTC is up from the start, Ampl. ↓ when it is down).
+  const bb = d.h.BTCUSDT;
+  const ibA = bb ? bb.t.findIndex((t) => t >= tA) : -1;
+  const btcBase = ibA >= 0 ? bb.o[ibA] : null;
+  const btcAt = [];
+  if (btcBase) {
+    for (let k = 0; k < bb.t.length; k++) if (bb.t[k] + HOUR >= x0) btcAt.push([Math.min(now, bb.t[k] + HOUR), bb.c[k] / btcBase - 1]);
+    if (prices.BTCUSDT > 0) btcAt.push([now, prices.BTCUSDT / btcBase - 1]);
+  }
+  const lines = [{ s: 'BTCUSDT', name: 'BTC', up: 1, dn: 1 }, ...tokens.map((t) => ({ s: t.symbol, name: t.symbol.replace('USDT', ''), up: t.upAmp ?? 1, dn: t.downAmp ?? 1 }))]
     .map((l, i) => {
       const b = d.h[l.s];
       if (!b || !b.t.length) return null;
@@ -47,8 +57,9 @@ export function ZoomChart({ waves, tokens, btcMove, days, prices }) {
       for (let k = 0; k < b.t.length; k++) if (b.t[k] + HOUR >= x0) real.push([Math.min(now, b.t[k] + HOUR), (b.c[k] / base) * 100]);
       const live = prices[l.s];
       if (live > 0) real.push([now, (live / base) * 100]);
-      const sim = Array.from({ length: 49 }, (_, k) => { const t = tA + (k / 48) * (x1 - tA); return [t, 100 * (1 + l.amp * btcMove * shape((t - tA) / (days * DAY)))]; });
-      const simNow = 100 * (1 + l.amp * btcMove * shape((now - tA) / (days * DAY)));
+      const exp = (m) => 100 * (1 + (m >= 0 ? l.up : l.dn) * m);
+      const sim = btcAt.map(([t, m]) => [t, exp(m)]);
+      const simNow = btcAt.length ? exp(btcAt[btcAt.length - 1][1]) : 100;
       return { ...l, color: i === 0 ? '#ffffffcc' : simColor(i - 1), real, sim, realNow: real.length ? real[real.length - 1][1] : null, simNow };
     }).filter(Boolean);
 
@@ -85,7 +96,7 @@ export function ZoomChart({ waves, tokens, btcMove, days, prices }) {
         <rect x={x(now)} y={P.t} width={x(x1) - x(now)} height={H - P.t - P.b} className="sim-zone" />
         {grid.map((v) => <g key={v}><line x1={P.l} x2={x(x1)} y1={y(v)} y2={y(v)} className="sim-grid" /><text x={4} y={y(v) + 4} className="sq-lbl">{v === 100 ? '100' : `${v > 100 ? '+' : ''}${v - 100}%`}</text></g>)}
         <line x1={x(tA)} x2={x(tA)} y1={P.t} y2={H - P.b} className="sq-ceil" />
-        <text x={x(tA) + 4} y={P.t + 12} className="sq-lbl">il y a 24 h · départ simulation (base 100)</text>
+        <text x={x(tA) + 4} y={P.t + 12} className="sq-lbl">il y a 24 h (base 100)</text>
         <line x1={x(now)} x2={x(now)} y1={P.t} y2={H - P.b} className="zm-now" />
         <text x={x(now) + 4} y={P.t + 12} className="sq-lbl">maintenant</text>
         {hours.map((t) => <text key={t} x={x(t)} y={H - 6} textAnchor="middle" className="sq-lbl">{new Date(t).toISOString().slice(11, 16)}</text>)}
@@ -105,7 +116,7 @@ export function ZoomChart({ waves, tokens, btcMove, days, prices }) {
         })}
       </svg>
       <div className="zm-legend">
-        <div className="zm-row zm-head"><span>Token</span><span>Réel</span><span>Réel ▮ contre sim │</span><span>Écart</span></div>
+        <div className="zm-row zm-head"><span>Token</span><span>Réel</span><span>Réel ▮ contre attendu │</span><span>Écart</span></div>
         {table.map((l) => {
           const gap = l.realNow != null ? l.realNow - l.simNow : null;
           // Mini bar on a shared scale: filled = real, tick = simulation.
