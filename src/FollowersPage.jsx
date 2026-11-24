@@ -7,6 +7,9 @@ import { PerfChart } from './components/PerfChart.jsx';
 import { buildCurves } from './core/curves.js';
 import { colorOf, fmtPts } from './lib/format.js';
 import { reliability } from './core/btcswings.js';
+import CATS from './data/categories.json';
+
+const mainCat = (symbol) => { const c = CATS.tokens[symbol.replace(/USDT$/, '')]; return (Array.isArray(c) ? c[0] : c?.main) || 'Autres'; };
 
 // BTC waves (up / down, fixed dates) and how every Bybit spot token followed
 // them. Data: /api/followers (daily, 1 h cache); the wave in progress uses the
@@ -192,6 +195,39 @@ export default function FollowersPage({ scan, onBack }) {
               <SimChart waves={data.waves} tokens={simSyms.map((s) => data.tokens.find((t) => t.symbol === s)).filter(Boolean)} btcMove={simMove ?? sim.avgMove} days={simDays ?? sim.avgDays} />
             </div>
           )}
+
+          {sim && (() => {
+            // Tokens of the simulation list grouped by main category (CoinGecko), average gain per wave and since BTC's low.
+            const toks = simSyms.map((s) => data.tokens.find((t) => t.symbol === s)).filter(Boolean);
+            const groups = {};
+            for (const t of toks) (groups[mainCat(t.symbol)] ||= []).push(t);
+            const avg = (a) => { const v = a.filter((x) => x != null && Number.isFinite(x)); return v.length ? v.reduce((p, q) => p + q, 0) / v.length : null; };
+            const rowsC = Object.entries(groups).map(([cat, list]) => ({
+              cat, list, waves: data.waves.map((w, k) => avg(list.map((t) => mv(t, k)))), low: avg(list.map(sinceLow)),
+            })).sort((a, b) => (b.low ?? -9) - (a.low ?? -9));
+            return (
+              <div className="card">
+                <div className="card-title">🗂 CATÉGORIES DE LA LISTE · {toks.length} tokens</div>
+                <div className="muted small">Catégorie principale de chaque token (CoinGecko). Gain = moyenne des tokens de la catégorie. Triées par le gain depuis le creux du BTC. Information seulement, n'entre dans aucun calcul.</div>
+                <div className="table-wrap">
+                  <table className="sq-table">
+                    <thead><tr><th>Catégorie</th><th>Tokens</th>{data.waves.map((w) => <th key={w.name}>{w.name}</th>)}<th>{lowHead}</th></tr></thead>
+                    <tbody>
+                      <tr className="on"><td><b>BTC</b></td><td>—</td>{data.waves.map((w, k) => <td key={w.name} className={cls(mv(btcRow, k))}>{pc(mv(btcRow, k))}</td>)}<td className={cls(btcSinceLow)}><b>{pc(btcSinceLow)}</b></td></tr>
+                      {rowsC.map((r) => (
+                        <tr key={r.cat}>
+                          <td><b>{r.cat}</b> <span className="muted">({r.list.length})</span></td>
+                          <td className="small">{r.list.map((t) => t.symbol.replace('USDT', '')).join(', ')}</td>
+                          {r.waves.map((v, k) => <td key={k} className={cls(v)}>{pc(v)}</td>)}
+                          <td className={r.low > btcSinceLow ? 'pos' : 'neg'}><b>{pc(r.low)}</b></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
 
           {sim && (
             <div className="card">
