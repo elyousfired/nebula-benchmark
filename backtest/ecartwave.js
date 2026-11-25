@@ -38,7 +38,17 @@ for (const s of uni) {
   if (!b.t.length || b.t[0] > H1[0]) continue; // needs data before Hausse 1
   const be = beta(b, btc, H1); const rB = ret(b, B1); const rH = ret(b, H2);
   if (be == null || rB == null || rH == null) continue;
-  rows.push({ s, be, eB: rB - be * bB1, eH: rH - be * bH2, rH });
+  // Consistency: share of BTC down days in Baisse 1 where the token fell less than beta × BTC.
+  let down = 0; let held = 0; let maxDay = 0;
+  for (let i = 1; i < btc.t.length; i++) {
+    const t = btc.t[i]; if (t <= B1[0] || t > B1[1]) continue;
+    const p = at(b, t); const q = at(b, btc.t[i - 1]); if (!p || !q) continue;
+    const r = p / q - 1; const m = btc.c[i] / btc.c[i - 1] - 1;
+    maxDay = Math.max(maxDay, Math.abs(r));
+    if (m < 0) { down++; if (r > be * m) held++; }
+  }
+  const pump = maxDay > 0.5 * Math.abs(rB); // one day carries more than half of the wave's move
+  rows.push({ s, be, eB: rB - be * bB1, eH: rH - be * bH2, rH, cons: down ? held / down : null, pump });
 }
 rows.sort((a, b) => b.eB - a.eB);
 const n = rows.length; const k = Math.floor(n / 3);
@@ -48,4 +58,13 @@ for (const [name, g] of groups) {
   console.log(`${name.padEnd(26)} n=${g.length}  écart B1 moy ${pc(mean(g.map((r) => r.eB)))} | H2 écart moy ${pc(mean(g.map((r) => r.eH)))} méd ${pc(med(g.map((r) => r.eH)))} | H2 brut moy ${pc(mean(g.map((r) => r.rH)))} méd ${pc(med(g.map((r) => r.rH)))} | H2 écart>0 ${Math.round(100 * g.filter((r) => r.eH > 0).length / g.length)}%`);
 }
 console.log(`Spearman(écart B1, écart H2) = ${spearman(rows.map((r) => r.eB), rows.map((r) => r.eH)).toFixed(2)} · (écart B1, brut H2) = ${spearman(rows.map((r) => r.eB), rows.map((r) => r.rH)).toFixed(2)}`);
-console.log('Top 10 écart B1:', rows.slice(0, 10).map((r) => `${r.s.replace('USDT', '')} ${pc(r.eB)}→${pc(r.eH)}`).join(' | '));
+// Test 2: consistency on BTC down days, pump tokens removed.
+const cs = rows.filter((r) => r.cons != null && !r.pump).sort((a, b) => b.cons - a.cons);
+const m3 = Math.floor(cs.length / 3);
+console.log(`\nTest 2 · constance (jours BTC rouge en Baisse 1, token tombe moins que l'attendu) · ${cs.length} tokens sans pump (${rows.length - cs.length} retirés)`);
+for (const [name, g] of [['Haut (le + constant)', cs.slice(0, m3)], ['Milieu', cs.slice(m3, cs.length - m3)], ['Bas', cs.slice(cs.length - m3)]]) {
+  console.log(`${name.padEnd(22)} n=${g.length}  constance moy ${Math.round(100 * mean(g.map((r) => r.cons)))}% | H2 écart moy ${pc(mean(g.map((r) => r.eH)))} méd ${pc(med(g.map((r) => r.eH)))} | H2 brut moy ${pc(mean(g.map((r) => r.rH)))} méd ${pc(med(g.map((r) => r.rH)))} | H2 écart>0 ${Math.round(100 * g.filter((r) => r.eH > 0).length / g.length)}%`);
+}
+console.log(`Spearman(constance, écart H2) = ${spearman(cs.map((r) => r.cons), cs.map((r) => r.eH)).toFixed(2)} · (constance, brut H2) = ${spearman(cs.map((r) => r.cons), cs.map((r) => r.rH)).toFixed(2)}`);
+console.log('Top 10 constance:', cs.slice(0, 10).map((r) => `${r.s.replace('USDT', '')} ${Math.round(100 * r.cons)}%→${pc(r.eH)}`).join(' | '));
+console.log('\nTop 10 écart B1:', rows.slice(0, 10).map((r) => `${r.s.replace('USDT', '')} ${pc(r.eB)}→${pc(r.eH)}`).join(' | '));
