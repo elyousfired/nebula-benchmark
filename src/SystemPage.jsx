@@ -175,7 +175,10 @@ export default function SystemPage({ scan, onBack }) {
   const box = useMemo(() => {
     if (!rows) return null;
     const quiet = rows.filter((x) => x.quietPct != null && x.quietPct <= 10);
-    const near = quiet.filter((x) => x.status !== 'BREAKOUT' && x.distPct != null && x.distPct < 0).sort((a, b) => b.distPct - a.distPct);
+    const under = (x) => x.status !== 'BREAKOUT' && x.distPct != null && x.distPct < 0 && x.quietPct != null;
+    const near = quiet.filter(under).sort((a, b) => b.distPct - a.distPct);
+    // Always 3: if fewer quiet tokens are under their ceiling, fill with the least noisy ones (lowest quiet) under their ceiling.
+    if (near.length < 3) near.push(...rows.filter((x) => under(x) && x.quietPct > 10).sort((a, b) => a.quietPct - b.quietPct).slice(0, 3 - near.length));
     const brk = rows.filter((x) => x.status === 'BREAKOUT').sort((a, b) => (b.breakout?.t ?? 0) - (a.breakout?.t ?? 0));
     return { n: rows.length, quiet: quiet.length, near, brk };
   }, [rows]);
@@ -250,6 +253,7 @@ export default function SystemPage({ scan, onBack }) {
                 <a href="/btc">/btc</a>
               </div>
               {x.distPct > -0.01 && <div className="sys-hotline">⚠ à moins de 1 % du plafond</div>}
+              {x.quietPct > 10 && <div className="sys-muted" style={{ marginTop: 6 }}>pas encore calme (quiet &gt; 10) : sa cassure ne donnerait pas de signal</div>}
             </div>
           ))}
         </section>
