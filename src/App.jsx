@@ -126,7 +126,7 @@ export default function App() {
     <div className="app">
       <Header scan={scan} onRescan={scan.rescan} />
       <Controls opts={opts} set={set} />
-      <div className="controls"><a className="btn" href="/top5" onClick={go('/top5')}>🥇 Top 5 →</a><a className="btn" href="/combo" onClick={go('/combo')}>🎯 Top 5 30J ∩ 24H →</a><a className="btn" href="/stable" onClick={go('/stable')}>🧱 Top 50 stables →</a><a className="btn" href="/btc" onClick={go('/btc')}>₿ Hausses BTC →</a><a className="btn" href="/forecast" onClick={go('/forecast')}>🔭 Prévision →</a><a className="btn" href="/squeeze" onClick={go('/squeeze')}>📦 Squeeze Radar →</a><a className="btn" href="/agent" onClick={go('/agent')}>🤖 Agent Top 50 →</a></div>
+      <div className="controls"><a className="btn" href="/system" onClick={go('/system')} style={{ borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }}>⚙ Notre système →</a><a className="btn" href="/top5" onClick={go('/top5')}>🥇 Top 5 →</a><a className="btn" href="/combo" onClick={go('/combo')}>🎯 Top 5 30J ∩ 24H →</a><a className="btn" href="/stable" onClick={go('/stable')}>🧱 Top 50 stables →</a><a className="btn" href="/btc" onClick={go('/btc')}>₿ Hausses BTC →</a><a className="btn" href="/forecast" onClick={go('/forecast')}>🔭 Prévision →</a><a className="btn" href="/squeeze" onClick={go('/squeeze')}>📦 Squeeze Radar →</a><a className="btn" href="/agent" onClick={go('/agent')}>🤖 Agent Top 50 →</a></div>
 
       {tokens.length === 0 ? (
         <div className="card empty">
