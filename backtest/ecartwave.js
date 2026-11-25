@@ -67,4 +67,6 @@ for (const [name, g] of [['Haut (le + constant)', cs.slice(0, m3)], ['Milieu', c
 }
 console.log(`Spearman(constance, écart H2) = ${spearman(cs.map((r) => r.cons), cs.map((r) => r.eH)).toFixed(2)} · (constance, brut H2) = ${spearman(cs.map((r) => r.cons), cs.map((r) => r.rH)).toFixed(2)}`);
 console.log('Top 10 constance:', cs.slice(0, 10).map((r) => `${r.s.replace('USDT', '')} ${Math.round(100 * r.cons)}%→${pc(r.eH)}`).join(' | '));
+const pu = rows.filter((r) => r.pump); const np = rows.filter((r) => !r.pump);
+for (const [name, g] of [['Avec pump en B1', pu], ['Sans pump', np]]) console.log(`${name.padEnd(16)} n=${g.length} | H2 brut moy ${pc(mean(g.map((r) => r.rH)))} méd ${pc(med(g.map((r) => r.rH)))} | H2 écart méd ${pc(med(g.map((r) => r.eH)))} | H2 > BTC ${Math.round(100 * g.filter((r) => r.rH > bH2).length / g.length)}%`);
 console.log('\nTop 10 écart B1:', rows.slice(0, 10).map((r) => `${r.s.replace('USDT', '')} ${pc(r.eB)}→${pc(r.eH)}`).join(' | '));
