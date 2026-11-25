@@ -39,6 +39,20 @@ function run(hold, i0, i1) {
   }
   return { r: eq - 1, dd, days };
 }
+// Same, but the change decided at close i-1 is filled at the OPEN of day i; counts switches.
+const O = (s, i) => (s === 'BTCUSDT' ? btcRows[i].o : M[s].get(T[i])?.o);
+function runOpen(hold, i0, i1) {
+  let eq = 1; let pk = 1; let dd = 0; let prev = 'cash'; let sw = 0; let entries = 0;
+  const sym = (h) => (h === 'BTC' ? 'BTCUSDT' : 'ETHUSDT');
+  for (let i = i0 + 1; i <= i1; i++) {
+    const h = hold(i - 1);
+    if (prev !== 'cash') eq *= (O(sym(prev), i) ?? C(sym(prev), i - 1)) / C(sym(prev), i - 1); // overnight to the open
+    if (h !== prev) { eq *= 1 - COST * (prev === 'cash' || h === 'cash' ? 1 : 2); if (prev !== 'cash' && h !== 'cash') sw++; if (prev === 'cash') entries++; prev = h; }
+    if (h !== 'cash') eq *= C(sym(h), i) / (O(sym(h), i) ?? C(sym(h), i - 1));
+    pk = Math.max(pk, eq); dd = Math.min(dd, eq / pk - 1);
+  }
+  return { r: eq - 1, dd, sw, entries, years: (T[i1] - T[i0]) / (365 * 86400000) };
+}
 const idx = (d) => T.findIndex((t) => t >= Date.parse(d));
 const PERIODS = [['2018-01 → 2021-06 (jamais vu)', '2018-01-01', '2021-07-01'], ['2021-07 → maintenant', '2021-07-01', null], ['Tout 2018 → maintenant', '2018-01-01', null]];
 for (const len of [30, 50, 100]) {
@@ -54,6 +68,9 @@ for (const len of [30, 50, 100]) {
     };
     console.log(`${label}`);
     for (const [k, v] of Object.entries(S)) console.log(`  ${k.padEnd(26)} ${pc(v.r).padStart(8)} · max DD ${pc(v.dd).padStart(5)}${v.days.ETH + v.days.ALTS ? ` · jours en alts ${v.days.ETH + v.days.ALTS}/${v.days.BTC + v.days.ETH + v.days.ALTS}` : ''}`);
+    const fo = runOpen((i) => (inBtc[i] ? (up[i] ? 'ETH' : 'BTC') : 'cash'), i0, i1);
+    const fb = runOpen((i) => (inBtc[i] ? 'BTC' : 'cash'), i0, i1);
+    console.log(`  [open du lendemain] feu BTC ${pc(fb.r)} · DD ${pc(fb.dd)} | feu + ETH ${pc(fo.r)} · DD ${pc(fo.dd)} · ${fo.entries} entrées · ${fo.sw} bascules BTC↔ETH (${(fo.sw / fo.years).toFixed(1)}/an)`);
   }
   // Did it catch the 2023-10 -> 2024-04 alt run, and stay in BTC otherwise?
   const i0 = idx('2023-10-18'); const i1 = idx('2024-04-30');
