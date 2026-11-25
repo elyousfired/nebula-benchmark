@@ -96,6 +96,35 @@ function BtcChart({ b, live }) {
   );
 }
 
+/** ETH/BTC daily ratio with its EMA50, last 150 days; background green when above the EMA. */
+function EthBtcChart({ btc, eth }) {
+  if (!btc || !eth) return <div className="sys-chart sys-btc sys-wait">chargement ETH/BTC…</div>;
+  const em = new Map(eth.t.map((t, i) => [t, eth.c[i]]));
+  const pts = []; let e = null;
+  btc.t.forEach((t, i) => { const p = em.get(t); if (!p) return; const r = p / btc.c[i]; e = e == null ? r : e + (2 / 51) * (r - e); pts.push({ t, r, e }); });
+  const v = pts.slice(-150); const n = v.length; const W = 1000; const H = 240; const P = 10; const R = 84;
+  let lo = Math.min(...v.map((p) => Math.min(p.r, p.e))); let hi = Math.max(...v.map((p) => Math.max(p.r, p.e)));
+  const pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
+  const y = (p) => P + (H - 2 * P) * (1 - (p - lo) / (hi - lo));
+  const cw = (W - R) / n; const x = (j) => j * cw + cw / 2;
+  const line = (f) => v.map((p, j) => `${j ? 'L' : 'M'}${x(j).toFixed(1)},${y(f(p)).toFixed(1)}`).join('');
+  const last = v[n - 1];
+  const lab = (p, txt, col) => (
+    <g><rect x={W - R + 3} y={y(p) - 9} width={R - 6} height={18} rx="4" fill={col} opacity="0.2" />
+      <text x={W - R / 2} y={y(p) + 4} textAnchor="middle" fontSize="11" fill={col}>{txt}</text></g>
+  );
+  return (
+    <svg className="sys-chart sys-btc" style={{ height: 240 }} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+      {v.map((p, j) => <rect key={j} x={j * cw} y={0} width={cw + 0.5} height={H} fill={p.r > p.e ? 'var(--green)' : 'var(--red)'} opacity="0.06" />)}
+      {v.map((p, j) => new Date(p.t).getUTCDate() === 1 && <g key={`m${j}`}><line x1={x(j)} x2={x(j)} y1={0} y2={H} stroke="var(--line)" /><text x={x(j) + 4} y={H - 4} fontSize="10" fill="var(--muted)">{new Date(p.t).toISOString().slice(0, 7)}</text></g>)}
+      <path d={line((p) => p.e)} fill="none" stroke="var(--cyan)" strokeWidth="2" />
+      <path d={line((p) => p.r)} fill="none" stroke="var(--text)" strokeWidth="1.6" />
+      {lab(last.e, `EMA ${last.e.toFixed(5)}`, 'var(--cyan)')}
+      {lab(last.r, last.r.toFixed(5), last.r > last.e ? 'var(--green)' : 'var(--red)')}
+    </svg>
+  );
+}
+
 export default function SystemPage({ scan, onBack }) {
   const [mk, setMk] = useState(null);
   const [rows, setRows] = useState(null);
@@ -189,6 +218,11 @@ export default function SystemPage({ scan, onBack }) {
       <section className="sys-card" style={{ marginBottom: 14 }}>
         <h3 className="sys-h3">₿ BTC jour · 150 derniers jours <span className="sys-muted">— <span style={{ color: 'var(--cyan)' }}>EMA50</span> · <span style={{ color: 'var(--gold)' }}>sommet avant le creux</span> · fond = couleur du feu ce jour-là</span></h3>
         <BtcChart b={mk?.btc} live={L?.live} />
+      </section>
+
+      <section className="sys-card" style={{ marginBottom: 14 }}>
+        <h3 className="sys-h3">Ξ ETH/BTC jour · 150 derniers jours <span className="sys-muted">— <span style={{ color: 'var(--cyan)' }}>EMA50</span> · fond vert = ETH plus fort que BTC (au-dessus de l'EMA), rouge = BTC plus fort</span></h3>
+        <EthBtcChart btc={mk?.btc} eth={mk?.eth} />
       </section>
 
       <section className="sys-tiles">
