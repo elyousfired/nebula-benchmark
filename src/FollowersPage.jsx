@@ -127,6 +127,20 @@ export default function FollowersPage({ scan, onBack }) {
       {err && <div className="error-line">⚠ {err}</div>}
       {!data ? <div className="card empty">{err ? '—' : 'Calcul sur tout Bybit spot… (~10 s)'}</div> : (
         <>
+          {data.trend && (() => {
+            const p = btcLive > 0 ? btcLive : data.trend.close;
+            const e = p > data.trend.ema50; const h = data.trend.top ? p > data.trend.top.h : false;
+            const n = e + h;
+            const top = data.trend.top;
+            return (
+              <div className="card small" style={{ fontSize: 15 }}>
+                <b>{n === 2 ? '🟢 BTC en hausse' : n === 1 ? '🟡 BTC hésite' : '🔴 BTC pas en hausse'}</b>
+                {' · '}EMA50 jour {Math.round(data.trend.ema50).toLocaleString('fr-FR')} {e ? '✅ au-dessus' : '❌ en dessous'}
+                {' · '}dernier sommet avant le creux {top ? `${Math.round(top.h).toLocaleString('fr-FR')} (${new Date(top.t).toISOString().slice(8, 10)}/${new Date(top.t).toISOString().slice(5, 7)})` : '—'} {h ? '✅ cassé' : '❌ pas cassé'}
+                {' · '}BTC {Math.round(p).toLocaleString('fr-FR')}
+              </div>
+            );
+          })()}
           <div className="card">
             <div className="wv-timeline">
               {data.waves.map((x, k) => (

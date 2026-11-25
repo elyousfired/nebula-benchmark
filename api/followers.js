@@ -47,6 +47,11 @@ export async function buildFollowers(now = Date.now()) {
   let iLow = -1;
   for (let i = 0; i < btc.t.length; i++) if (btc.t[i] > cur.t0 && btc.t[i] <= cur.t1 && (iLow < 0 || btc.l[i] < btc.l[iLow])) iLow = i;
   const low = iLow >= 0 ? { t: btc.t[iLow], btcLow: btc.l[iLow], btcClose: btc.c[iLow] } : null;
+  // BTC trend light inputs: daily EMA50 and the last top before the low (highest high of the 20 days before it).
+  let ema = btc.c[0]; for (let i = 1; i < btc.c.length; i++) ema += (2 / 51) * (btc.c[i] - ema);
+  let iTop = -1;
+  if (iLow > 0) for (let i = Math.max(0, iLow - 20); i < iLow; i++) if (iTop < 0 || btc.h[i] > btc.h[iTop]) iTop = i;
+  const trend = { ema50: ema, close: btc.c[btc.c.length - 1], top: iTop >= 0 ? { t: btc.t[iTop], h: btc.h[iTop] } : null };
   const tickers = (await get('tickers', { category: 'spot' })).list || [];
   const universe = selectUniverse(tickers, { limit: 500 }).map((t) => t.symbol);
   const tokens = [];
@@ -63,7 +68,7 @@ export async function buildFollowers(now = Date.now()) {
       } catch { /* skipped */ }
     }
   }));
-  return { generatedAt: now, waves, btc: btcMoves, low, universe: universe.length, tokens };
+  return { generatedAt: now, waves, btc: btcMoves, low, trend, universe: universe.length, tokens };
 }
 
 export default async function handler(req, res) {
