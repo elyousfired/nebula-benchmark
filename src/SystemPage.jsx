@@ -61,6 +61,41 @@ function BoxChart({ b, row }) {
   );
 }
 
+/** BTC daily, last 150 days: candles, EMA50, last top before the low, background tinted by the light. */
+function BtcChart({ b, live }) {
+  if (!b) return <div className="sys-chart sys-btc sys-wait">chargement du graphique BTC…</div>;
+  const s = lightSeries(b); const k0 = Math.max(0, b.t.length - 150); const idx = s.slice(k0).map((_, j) => k0 + j);
+  const n = idx.length; const W = 1000; const H = 320; const P = 10; const R = 74;
+  let lo = Infinity; let hi = -Infinity;
+  idx.forEach((i) => { lo = Math.min(lo, b.l[i], s[i].ema); hi = Math.max(hi, b.h[i], s[i].ema, s[i].top || 0); });
+  const pad = (hi - lo) * 0.05; lo -= pad; hi += pad;
+  const y = (p) => P + (H - 2 * P) * (1 - (p - lo) / (hi - lo));
+  const cw = (W - R) / n; const x = (j) => j * cw + cw / 2;
+  const path = (f) => idx.map((i, j) => (f(i) ? `${j && f(idx[j - 1]) ? 'L' : 'M'}${x(j).toFixed(1)},${y(f(i)).toFixed(1)}` : '')).join('');
+  const last = s[idx[n - 1]];
+  const lab = (p, txt, col) => p && (
+    <g><rect x={W - R + 3} y={y(p) - 9} width={R - 6} height={18} rx="4" fill={col} opacity="0.2" />
+      <text x={W - R / 2} y={y(p) + 4} textAnchor="middle" fontSize="11" fill={col}>{txt}</text></g>
+  );
+  const months = idx.map((i, j) => [j, new Date(b.t[i])]).filter(([, d]) => d.getUTCDate() === 1);
+  return (
+    <svg className="sys-chart sys-btc" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+      {idx.map((i, j) => s[i].n != null && <rect key={`b${j}`} x={j * cw} y={0} width={cw + 0.5} height={H} fill={LCOL[s[i].n]} opacity="0.06" />)}
+      {months.map(([j, d]) => <g key={`m${j}`}><line x1={x(j)} x2={x(j)} y1={0} y2={H} stroke="var(--line)" /><text x={x(j) + 4} y={H - 4} fontSize="10" fill="var(--muted)">{d.toISOString().slice(0, 7)}</text></g>)}
+      {idx.map((i, j) => {
+        const col = b.c[i] >= b.o[i] ? 'var(--green)' : 'var(--red)';
+        return <g key={j}><line x1={x(j)} x2={x(j)} y1={y(b.h[i])} y2={y(b.l[i])} stroke={col} strokeWidth="1" />
+          <rect x={x(j) - cw * 0.35} width={cw * 0.7} y={y(Math.max(b.o[i], b.c[i]))} height={Math.max(1, Math.abs(y(b.o[i]) - y(b.c[i])))} fill={col} /></g>;
+      })}
+      <path d={path((i) => s[i].ema)} fill="none" stroke="var(--cyan)" strokeWidth="2" />
+      <path d={path((i) => s[i].top)} fill="none" stroke="var(--gold)" strokeWidth="1.5" strokeDasharray="5 4" />
+      {lab(last.ema, `EMA50 ${fp(last.ema)}`, 'var(--cyan)')}
+      {lab(last.top, `top ${fp(last.top)}`, 'var(--gold)')}
+      {lab(live, fp(live), 'var(--text)')}
+    </svg>
+  );
+}
+
 export default function SystemPage({ scan, onBack }) {
   const [mk, setMk] = useState(null);
   const [rows, setRows] = useState(null);
@@ -149,6 +184,11 @@ export default function SystemPage({ scan, onBack }) {
             <Cond ok={L.cur.top && L.live > L.cur.top} name="Sommet avant le creux" lvl={L.cur.top} gap={L.toTop} />
           </div>
         )}
+      </section>
+
+      <section className="sys-card" style={{ marginBottom: 14 }}>
+        <h3 className="sys-h3">₿ BTC jour · 150 derniers jours <span className="sys-muted">— <span style={{ color: 'var(--cyan)' }}>EMA50</span> · <span style={{ color: 'var(--gold)' }}>sommet avant le creux</span> · fond = couleur du feu ce jour-là</span></h3>
+        <BtcChart b={mk?.btc} live={L?.live} />
       </section>
 
       <section className="sys-tiles">
@@ -282,6 +322,8 @@ const CSS = `
 .sys-price{font-family:var(--mono);color:var(--muted);font-size:13px}
 .sys-dist{margin-left:auto;font-family:var(--mono);font-weight:700;font-size:15px;color:var(--cyan)}
 .sys-chart{width:100%;height:190px;display:block;background:var(--bg);border-radius:10px;border:1px solid var(--line)}
+.sys-btc{height:320px}
+@media (max-width:520px){.sys-btc{height:220px}}
 .sys-tok-foot{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}.sys-tok-foot b{color:var(--text);font-family:var(--mono)}
 .sys-tok-foot a{margin-left:auto}
 .sys-hotline{margin-top:8px;font-size:12px;color:var(--gold);font-weight:600}
