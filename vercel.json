@@ -40,6 +40,10 @@
                      },
                      {
                          "destination":  "/index.html",
+                         "source":  "/system"
+                     },
+                     {
+                         "destination":  "/index.html",
                          "source":  "/forecast"
                      }
                  ],

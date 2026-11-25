@@ -18,9 +18,10 @@ import Top5Page from './Top5Page.jsx';
 import ComboPage from './ComboPage.jsx';
 import StablePage from './StablePage.jsx';
 import FollowersPage from './FollowersPage.jsx';
+import SystemPage from './SystemPage.jsx';
 import ForecastPage from './ForecastPage.jsx';
 
-const ROUTES = { '/squeeze': 'squeeze', '/agent': 'agent', '/top5': 'top5', '/combo': 'combo', '/stable': 'stable', '/btc': 'btc', '/forecast': 'forecast' };
+const ROUTES = { '/squeeze': 'squeeze', '/agent': 'agent', '/top5': 'top5', '/combo': 'combo', '/stable': 'stable', '/btc': 'btc', '/system': 'system', '/forecast': 'forecast' };
 const routeOf = () => ROUTES[window.location.pathname.replace(/\/$/, '')] || 'main';
 
 const OPTS_KEY = 'nebula_bench_v2_opts';
@@ -114,6 +115,7 @@ export default function App() {
 
   if (route === 'forecast') return <ForecastPage scan={scan} onBack={go('/')} />;
   if (route === 'btc') return <FollowersPage scan={scan} onBack={go('/')} />;
+  if (route === 'system') return <SystemPage scan={scan} onBack={go('/')} />;
   if (route === 'stable') return <StablePage scan={scan} onBack={go('/')} />;
   if (route === 'combo') return <ComboPage scan={scan} top50={alertList} onBack={go('/')} />;
   if (route === 'top5') return <Top5Page scan={scan} top50={alertList} onBack={go('/')} />;
