@@ -283,6 +283,21 @@ export default function SystemPage({ scan, onBack }) {
       )}
       {box && box.brk.length > 6 && <div className="sys-muted" style={{ margin: '-8px 0 18px' }}>+ {box.brk.length - 6} autres : {box.brk.slice(6).map((x) => base(x.symbol)).join(', ')}</div>}
 
+      <h2 className="sys-h">📅 Cassures des 7 derniers jours {st?.week && <span className="sys-tag">{st.week.length}</span>} <span className="sys-muted">· calculé par l'agent chaque heure, sur les 200 alts</span></h2>
+      <div className="sys-card" style={{ marginBottom: 18 }}>
+        {!st ? <div className="sys-muted">…</div> : !st.week ? <div className="sys-muted">Disponible après la prochaine exécution de l'agent.</div> : !st.week.length ? <div className="sys-muted">Aucune cassure cette semaine.</div> : (
+          <div className="table-wrap"><table className="sys-table">
+            <thead><tr><th>Token</th><th>Cassure (UTC)</th><th>Feu ce jour-là</th><th>Entrée</th><th>Quiet</th><th>Maintenant</th><th>Max après</th><th>Min après</th><th>Stop −5 % touché ?</th></tr></thead>
+            <tbody>{st.week.map((w) => (
+              <tr key={w.s + w.t}><td><a href={bybit(w.s)} target="_blank" rel="noreferrer"><b>{base(w.s)}</b></a></td><td className="sys-muted">{hm(w.t)}</td>
+                <td>{w.light == null ? '—' : LIGHT[w.light]}</td><td>{fp(w.entry)}</td><td>{w.quiet == null ? '—' : Math.round(w.quiet)}</td>
+                <td className={w.ret >= 0 ? 'pos' : 'neg'}><b>{pc(w.ret)}</b></td><td className="pos">{pc(w.max)}</td><td className="neg">{pc(w.min)}</td>
+                <td>{w.min <= -0.05 ? <span className="neg">oui</span> : <span className="sys-muted">non</span>}</td></tr>
+            ))}</tbody>
+          </table></div>
+        )}
+      </div>
+
       <section className="sys-grid">
 
         <div className="sys-card">
