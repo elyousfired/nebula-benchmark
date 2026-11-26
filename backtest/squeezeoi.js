@@ -72,6 +72,34 @@ for (const s of alts) {
   }
 }
 
+if (process.argv.includes('--short')) {
+  // Short trades on spot 1H bars from the signal close: take profit TP, stop -8 %, max H hours.
+  // If TP and stop are both inside the same hour, the stop is counted (worst case). Cost 0.15 %/side.
+  const { range } = await import('./data.js');
+  const bars = new Map();
+  const get1h = async (s) => { if (!bars.has(s)) { try { bars.set(s, await range(s, '60', T0 - 2 * DAY)); } catch { bars.set(s, null); } } return bars.get(s); };
+  const run = async (g, tp, hmax, stopPct = 0.08) => {
+    let usd = 0; let w = 0; let l = 0; let nTp = 0; let nSt = 0; let nT = 0; let n = 0;
+    for (const x of g) {
+      const b = await get1h(x.s); if (!b) continue;
+      const i0 = b.t.findIndex((t) => t >= x.t); if (i0 < 0) continue;
+      const e = b.o[i0]; let px = null;
+      for (let j = i0; j < b.t.length && j < i0 + hmax; j++) {
+        if (b.l[j] <= e * (1 - stopPct)) { px = e * (1 - stopPct); nSt++; break; }
+        if (b.h[j] >= e * (1 + tp)) { px = e * (1 + tp); nTp++; break; }
+      }
+      if (px == null) { const j = Math.min(b.t.length - 1, i0 + hmax - 1); px = b.c[j]; nT++; }
+      const r = 10 * ((px * 0.9985) / (e * 1.0015) - 1); usd += r; if (r > 0) w += r; else l -= r; n++;
+    }
+    return `${String(n).padStart(4)} tr · TP touché ${n ? Math.round((100 * nTp) / n) : 0}% · stop ${n ? Math.round((100 * nSt) / n) : 0}% · fin du temps ${n ? Math.round((100 * nT) / n) : 0}% · ${(usd >= 0 ? '+' : '') + usd.toFixed(1).padStart(6)} $ · PF ${l ? (w / l).toFixed(2) : '—'}`;
+  };
+  console.log(`\nSORTIE COURTE · stop -8 % · bougies 1H spot · 10 $ par signal`);
+  for (const [name, g] of [['A+B+C', sig.ABC], ['A+B  ', sig.AB]]) {
+    for (const h of [24, 48]) for (const tp of [0.10, 0.15, 0.20]) console.log(`${name} · ${String(h).padStart(2)}h · TP +${tp * 100}%  ${await run(g, tp, h)}`);
+    console.log('');
+  }
+  process.exit(0);
+}
 const pc = (x) => `${x >= 0 ? '+' : ''}${(x * 100).toFixed(1)}%`;
 const med = (a) => { const v = [...a].sort((x, y) => x - y); return v.length ? v[Math.floor(v.length / 2)] : 0; };
 const line = (g) => {
