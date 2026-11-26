@@ -35,19 +35,35 @@ for (const s of alts) {
     if (b.c[k] / b.o[k] - 1 < MOVE) continue;
     let vs = 0; let hi = 0; for (let j = k - 168; j < k; j++) { vs += b.q[j]; hi = Math.max(hi, b.h[j]); }
     if (!(b.q[k] >= VOL * (vs / 168)) || b.c[k] <= hi) continue;
-    // trade
-    const entry = b.o[k + 1]; let stop = Math.max(b.l[k], entry * 0.88); let peak = entry; let exit = null;
-    for (let j = k + 1; j < n; j++) {
-      if (b.o[j] <= stop && j > k + 1) { exit = { j, px: b.o[j], why: 'stop' }; break; }
-      if (b.l[j] <= stop) { exit = { j, px: Math.min(stop, b.o[j]), why: stop > entry ? 'trailing' : 'stop' }; break; }
-      peak = Math.max(peak, b.h[j]);
-      if (peak >= entry * 1.2) stop = Math.max(stop, peak * 0.85);
-      if (b.t[j] + HOUR >= b.t[k + 1] + 7 * DAY) { exit = { j, px: b.c[j], why: '7 jours' }; break; }
-    }
-    if (!exit) { exit = { j: n - 1, px: b.c[n - 1], why: 'ouvert' }; }
-    const ret = (exit.px * (1 - COST)) / (entry * (1 + COST)) - 1;
-    trades.push({ s, t: b.t[k + 1], light: light(b.t[k + 1]), entry, ret, usd: BET * ret, why: exit.why, hours: exit.j - k, max: peak / entry - 1, candle: b.c[k] / b.o[k] - 1, vx: b.q[k] / (vs / 168) });
-    busyUntil = exit.j;
+    // trade entered at the open of bar e (e = k+1 normally, later for the waiting filters)
+    const sim = (e) => {
+      if (e >= n) return null;
+      const entry = b.o[e]; let stop = Math.max(b.l[k], entry * 0.88); let peak = entry; let exit = null;
+      if (entry <= stop) stop = entry * 0.88;
+      for (let j = e; j < n; j++) {
+        if (b.o[j] <= stop && j > e) { exit = { j, px: b.o[j], why: stop > entry ? 'trailing' : 'stop' }; break; }
+        if (b.l[j] <= stop) { exit = { j, px: Math.min(stop, b.o[j]), why: stop > entry ? 'trailing' : 'stop' }; break; }
+        peak = Math.max(peak, b.h[j]);
+        if (peak >= entry * 1.2) stop = Math.max(stop, peak * 0.85);
+        if (b.t[j] + HOUR >= b.t[e] + 7 * DAY) { exit = { j, px: b.c[j], why: '7 jours' }; break; }
+      }
+      if (!exit) exit = { j: n - 1, px: b.c[n - 1], why: 'ouvert' };
+      const ret = (exit.px * (1 - COST)) / (entry * (1 + COST)) - 1;
+      return { s, t: b.t[e], light: light(b.t[e]), entry, ret, usd: BET * ret, why: exit.why, hours: exit.j - e + 1, max: peak / entry - 1, j: exit.j };
+    };
+    const base = sim(k + 1); if (!base) continue;
+    // features of the signal, known at the close of k (or later for the waiting filters)
+    const avg = vs / 168; const mid = (b.o[k] + b.c[k]) / 2;
+    let m30 = 0; for (let j = k - 720; j < k; j++) m30 += b.c[j]; m30 /= 720;
+    const f = {
+      wick: (b.c[k] - b.l[k]) / (b.h[k] - b.l[k] || 1) >= 0.75, // F2 close in the top quarter
+      cap: b.c[k] / b.o[k] - 1 <= 0.25, // F4 candle <= +25 %
+      trend: b.c[k - 1] > m30, // F5 above its 30-day mean before the candle
+      vol2: k + 1 < n && b.q[k + 1] >= 3 * avg, // F3 next hour volume >= 3x (entry k+2)
+      conf: k + 3 < n && b.c[k + 1] >= mid && b.c[k + 2] >= mid, // F1 2 hours holding the middle (entry k+3)
+    };
+    trades.push({ ...base, f, vol2T: f.vol2 ? sim(k + 2) : null, confT: f.conf ? sim(k + 3) : null, allT: f.conf && f.vol2 && f.wick && f.cap && f.trend ? sim(k + 3) : null });
+    busyUntil = base.j;
   }
 }
 
@@ -59,7 +75,32 @@ const stat = (g) => {
   const win = g.filter((x) => x.usd > 0);
   return `${String(g.length).padStart(4)} trades · ${String(Math.round((win.length / g.length) * 100)).padStart(3)}% gagnants · ${(gain - loss >= 0 ? '+' : '') + (gain - loss).toFixed(2)} $ · PF ${loss ? (gain / loss).toFixed(2) : '∞'} · stop en <24h ${Math.round((fast / g.length) * 100)}% · gain moyen des gagnants ${win.length ? pc(win.reduce((a, x) => a + x.ret, 0) / win.length) : '—'}`;
 };
-console.log(`\nEXPLOSION · ${done} alts (top ${N} actuel) · volume ≥ ${VOL}x · bougie ≥ ${pc(MOVE)} · 10 $ par signal`);
+if (process.argv.includes('--filters')) {
+  const VARS = [
+    ['Base (sans filtre)', trades],
+    ['F1 confirmation 2h (entrée h+3)', trades.map((x) => x.confT).filter(Boolean)],
+    ['F2 clôture en haut de la bougie', trades.filter((x) => x.f.wick)],
+    ['F3 volume h+1 ≥ 3x (entrée h+2)', trades.map((x) => x.vol2T).filter(Boolean)],
+    ['F4 bougie ≤ +25 %', trades.filter((x) => x.f.cap)],
+    ['F5 au-dessus moyenne 30 j', trades.filter((x) => x.f.trend)],
+    ['F2+F4+F5 (entrée h+1)', trades.filter((x) => x.f.wick && x.f.cap && x.f.trend)],
+    ['Les 5 ensemble (entrée h+3)', trades.map((x) => x.allT).filter(Boolean)],
+  ];
+  const usd = (g) => g.reduce((a, x) => a + x.usd, 0);
+  const pf = (g) => { const w = g.filter((x) => x.usd > 0).reduce((a, x) => a + x.usd, 0); const l = -g.filter((x) => x.usd <= 0).reduce((a, x) => a + x.usd, 0); return l ? (w / l).toFixed(2) : '∞'; };
+  console.log(`\nFILTRES · ${done} alts · 10 $ par signal · total puis par vague (H1 / B1 / H2 / B2)`);
+  for (const lt of [['sans feu', () => true], ['feu 🟡/🟢', (x) => x.light >= 1]]) {
+    console.log(`\n== ${lt[0]} ==`);
+    for (const [name, g0] of VARS) {
+      const g = g0.filter(lt[1]); const win = g.filter((x) => x.usd > 0).length;
+      const fast = g.filter((x) => x.why === 'stop' && x.hours <= 24).length;
+      const waves = WAVES.map((w) => { const h = g.filter((x) => x.t >= w.a && x.t < w.b); return `${usd(h) >= 0 ? '+' : ''}${usd(h).toFixed(0)}$`; }).join(' / ');
+      console.log(`${name.padEnd(34)} ${String(g.length).padStart(4)} tr · ${String(g.length ? Math.round((win / g.length) * 100) : 0).padStart(2)}% gagn · ${(usd(g) >= 0 ? '+' : '') + usd(g).toFixed(1).padStart(6)} $ · PF ${pf(g)} · stop<24h ${g.length ? Math.round((fast / g.length) * 100) : 0}% · ${waves}`);
+    }
+  }
+  process.exit(0);
+}
+console.log(`\nEXPLOSION ·${done} alts (top ${N} actuel) · volume ≥ ${VOL}x · bougie ≥ ${pc(MOVE)} · 10 $ par signal`);
 for (const w of WAVES) {
   const g = trades.filter((x) => x.t >= w.a && x.t < w.b);
   console.log(`\n${w.n} (${new Date(w.a).toISOString().slice(0, 10)} → ${new Date(w.b).toISOString().slice(0, 10)})`);
