@@ -124,7 +124,7 @@ export function regimeAt(btcDaily, ts) {
  * Every signal for one symbol. One signal per box: after a signal, the next one
  * needs `cooldownDays` and the price back under the ceiling first.
  */
-export function findSignals({ symbol, b4, b1h, btcDaily, from, cooldownDays = 3 }) {
+export function findSignals({ symbol, b4, b1h, btcDaily, from, cooldownDays = 3, quietMax = QUIET_MAX }) {
   const rng = rngSeries(b4);
   const quietCache = new Map();
   const quiet = (j) => {
@@ -145,7 +145,7 @@ export function findSignals({ symbol, b4, b1h, btcDaily, from, cooldownDays = 3 
     if (!above) { armed = true; continue; }
     if (!armed || t - lastSignal < cooldownDays * DAY) continue;
     const q = quiet(j);
-    if (q == null || q > QUIET_MAX) continue;
+    if (q == null || q > quietMax) continue;
     armed = false;
     lastSignal = t;
     const entry = b1h.c[k];
