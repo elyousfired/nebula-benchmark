@@ -54,6 +54,7 @@ function BoxChart({ b, row }) {
         return <g key={i}><line x1={x(i)} x2={x(i)} y1={y(b.h[i])} y2={y(b.l[i])} stroke={col} strokeWidth="1" opacity="0.8" />
           <rect x={x(i) - cw * 0.35} width={cw * 0.7} y={y(Math.max(b.o[i], b.c[i]))} height={Math.max(1, Math.abs(y(b.o[i]) - y(b.c[i])))} fill={col} /></g>;
       })}
+      {row.breakout?.t && (() => { const j = b.t.findIndex((t) => t + 4 * 3_600_000 > row.breakout.t); return j >= 0 && <g><line x1={x(j)} x2={x(j)} y1={0} y2={H} stroke="var(--gold)" strokeWidth="1.5" /><text x={x(j) - 4} y={14} textAnchor="end" fontSize="10" fill="var(--gold)">cassure</text></g>; })()}
       {lab(row.high, 'plafond', 'var(--cyan)')}
       {lab(stop, 'stop −5%', 'var(--red)')}
       {lab(b.c[n - 1], fp(b.c[n - 1]), 'var(--text)')}
@@ -184,9 +185,10 @@ export default function SystemPage({ scan, onBack }) {
   }, [rows]);
 
   const top3 = box?.near.slice(0, 3) || [];
-  const key3 = top3.map((x) => x.symbol).join(',');
+  const brk6 = box?.brk.slice(0, 6) || [];
+  const key3 = [...top3, ...brk6].map((x) => x.symbol).join(',');
   useEffect(() => {
-    top3.forEach((x) => fetchKlines(x.symbol, '240', 120).then(parseKlines).then((b) => setCharts((c) => ({ ...c, [x.symbol]: b }))).catch(() => {}));
+    [...top3, ...brk6].forEach((x) => fetchKlines(x.symbol, '240', 120).then(parseKlines).then((b) => setCharts((c) => ({ ...c, [x.symbol]: b }))).catch(() => {}));
   }, [key3]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const st = paper?.st; const closed = paper?.closed || [];
@@ -259,18 +261,29 @@ export default function SystemPage({ scan, onBack }) {
         </section>
       )}
 
+      <h2 className="sys-h">🚀 Cassures des dernières 24 h {box && <span className="sys-tag">{box.brk.length}</span>}</h2>
+      {!box ? <div className="sys-card sys-wait">…</div> : !box.brk.length ? <div className="sys-card sys-muted" style={{ marginBottom: 18 }}>Aucune cassure.</div> : (
+        <section className="sys-three">
+          {brk6.map((x) => (
+            <div key={x.symbol} className="sys-card sys-tok">
+              <div className="sys-tok-head">
+                <a className="sys-sym" href={bybit(x.symbol)} target="_blank" rel="noreferrer">{base(x.symbol)}</a>
+                <span className="sys-price">{fp(x.price)}</span>
+                <span className={`sys-dist ${x.price >= x.breakout?.close ? 'pos' : 'neg'}`}>{pc(x.breakout?.close ? x.price / x.breakout.close - 1 : null)}</span>
+              </div>
+              <BoxChart b={charts[x.symbol]} row={x} />
+              <div className="sys-tok-foot">
+                <span>cassure <b>{x.breakout?.t ? hm(x.breakout.t) : '—'}</b> UTC</span><span>niveau <b>{fp(x.breakout?.level)}</b></span>
+                <span>quiet <b>{x.breakout?.quiet == null ? '—' : Math.round(x.breakout.quiet)}</b></span>
+                {L && L.cur.n >= 1 ? <span className="sys-tag pos">achat 10 $</span> : <span className="sys-tag neg">feu 🔴</span>}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+      {box && box.brk.length > 6 && <div className="sys-muted" style={{ margin: '-8px 0 18px' }}>+ {box.brk.length - 6} autres : {box.brk.slice(6).map((x) => base(x.symbol)).join(', ')}</div>}
+
       <section className="sys-grid">
-        <div className="sys-card">
-          <h3 className="sys-h3">🚀 Cassures des dernières 24 h</h3>
-          {!box ? <div className="sys-muted">…</div> : !box.brk.length ? <div className="sys-muted">Aucune cassure.</div> : (
-            <table className="sys-table"><thead><tr><th>Token</th><th>Heure UTC</th><th>Niveau</th><th>Depuis</th><th>Signal</th></tr></thead>
-              <tbody>{box.brk.map((x) => (
-                <tr key={x.symbol}><td><a href={bybit(x.symbol)} target="_blank" rel="noreferrer"><b>{base(x.symbol)}</b></a></td><td className="sys-muted">{x.breakout?.t ? hm(x.breakout.t) : '—'}</td>
-                  <td>{fp(x.breakout?.level)}</td><td className={x.price >= x.breakout?.close ? 'pos' : 'neg'}>{pc(x.breakout?.close ? x.price / x.breakout.close - 1 : null)}</td>
-                  <td>{L && L.cur.n >= 1 ? <span className="sys-tag pos">achat 10 $</span> : <span className="sys-tag neg">feu 🔴</span>}</td></tr>
-              ))}</tbody></table>
-          )}
-        </div>
 
         <div className="sys-card">
           <h3 className="sys-h3">📒 Papier de l'agent <span className="sys-muted">10 $ / signal · 🟡🟢</span></h3>
